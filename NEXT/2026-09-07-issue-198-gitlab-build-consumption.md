@@ -1,6 +1,7 @@
 ---
 date: 2026-09-07
 issue: 198
+impact: minor
 title: Define Nexus-pinned GitLab build-container consumption
 ---
 
