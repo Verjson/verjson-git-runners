@@ -3,7 +3,7 @@
 # Curl-pipe installer. Clones the repo, then runs bootstrap.sh (which installs Docker + gh,
 # builds the `gha` manager, and launches it). Intended for:
 #
-#     curl -fsSL https://raw.githubusercontent.com/Verjson/github-runner-docker-compose/main/install.sh | bash
+#     curl -fsSL https://git.159-195-78-163.nip.io/Verjson/verjson-git-runners/-/raw/main/install.sh | bash
 #
 # Overrides (env vars):
 #     GHA_DIR=/opt/github-runner   # where to clone   (default: ~/github-runner)
@@ -11,7 +11,7 @@
 # Pass-through flags go to bootstrap.sh, e.g.  ... | bash -s -- --no-run
 set -euo pipefail
 
-REPO="https://github.com/Verjson/github-runner-docker-compose.git"
+REPO="https://git.159-195-78-163.nip.io/Verjson/verjson-git-runners.git"
 DIR="${GHA_DIR:-$HOME/github-runner}"
 REF="${GHA_REF:-main}"
 
@@ -24,7 +24,7 @@ SUDO=""; [ "$(id -u)" -ne 0 ] && SUDO="sudo"
 # though this script itself arrived over a pipe. If there's no TTY, we set up but don't launch.
 NO_TTY=0
 if [ ! -t 0 ]; then
-  if [ -r /dev/tty ]; then exec </dev/tty; else NO_TTY=1; fi
+  if ( : </dev/tty ) 2>/dev/null; then exec </dev/tty; else NO_TTY=1; fi
 fi
 
 # git is required to clone.

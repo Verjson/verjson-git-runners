@@ -23,6 +23,22 @@ sys.modules[SPEC.name] = retention
 SPEC.loader.exec_module(retention)
 
 
+class RenamedRepositoryIdentityTest(unittest.TestCase):
+    def test_new_workflow_identity_starts_renamed_observation_history(self):
+        source = retention.source_identity(
+            repository="Verjson/verjson-git-runners", ref="refs/heads/main",
+            run_id=1, run_attempt=1, head_sha="a" * 40,
+        )
+        self.assertEqual(source["repository"], "Verjson/verjson-git-runners")
+
+    def test_historical_identity_cannot_extend_new_retention_observations(self):
+        with self.assertRaises(retention.RetentionError):
+            retention.source_identity(
+                repository="Verjson/verjson-github-runner", ref="refs/heads/main",
+                run_id=1, run_attempt=1, head_sha="a" * 40,
+            )
+
+
 def blob_digest(character):
     return "sha256:" + character * 64
 

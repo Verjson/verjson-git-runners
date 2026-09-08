@@ -21,7 +21,7 @@ from typing import Any, Iterable
 
 
 OWNER = "Verjson"
-REPOSITORY = "Verjson/verjson-github-runner"
+REPOSITORY = "Verjson/verjson-git-runners"
 PACKAGE = "gha-runner"
 IMAGE = "ghcr.io/verjson/gha-runner"
 WORKFLOW_FILE = "ghcr-retention.yml"

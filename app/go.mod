@@ -1,4 +1,4 @@
-module github.com/Verjson/github-runner-docker-compose/app
+module git.159-195-78-163.nip.io/Verjson/verjson-git-runners/app
 
 go 1.26.6
 

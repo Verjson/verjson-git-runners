@@ -1,4 +1,14 @@
-# Dockerized GitHub Actions self-hosted runner
+# verjson-git-runners
+
+Producer-owned runner images for GitHub and GitLab. The primary repository is
+[`Verjson/verjson-git-runners` on GitLab](https://git.159-195-78-163.nip.io/Verjson/verjson-git-runners).
+The GitHub repository is renamed to `Verjson/verjson-git-runners`; the existing
+GitHub workflows remain available during canary acceptance. See the
+[migration decision](docs/decisions/0012-gitlab-primary-runner-producer/README.md)
+and [GitLab consumption guide](docs/gitlab/README.md).
+
+Existing signed releases keep their original repository and `ghcr.io/verjson/gha-runner`
+source identities. The rename does not rebuild or relicense those artifacts.
 
 Runs a self-hosted runner in Docker. Works on any machine (home PC, VPS, mini PC)
 **behind NAT / with a dynamic IP** — the runner only makes *outbound* HTTPS
@@ -180,12 +190,12 @@ container for the next job.
 
 Don't even need to clone first — this fetches the repo and sets everything up:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Verjson/verjson-github-runner/main/install.sh | bash
+curl -fsSL https://git.159-195-78-163.nip.io/Verjson/verjson-git-runners/-/raw/main/install.sh | bash
 ```
 It clones into `~/github-runner` (override with `GHA_DIR=…`), then runs `bootstrap.sh`.
 Set up without launching:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Verjson/verjson-github-runner/main/install.sh | bash -s -- --no-run
+curl -fsSL https://git.159-195-78-163.nip.io/Verjson/verjson-git-runners/-/raw/main/install.sh | bash -s -- --no-run
 ```
 
 Already cloned? Just run:
