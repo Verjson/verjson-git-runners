@@ -13,9 +13,9 @@ import (
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 
-	"github.com/Verjson/github-runner-docker-compose/app/internal/dockerx"
-	"github.com/Verjson/github-runner-docker-compose/app/internal/ghc"
-	"github.com/Verjson/github-runner-docker-compose/app/internal/kinds"
+	"git.159-195-78-163.nip.io/Verjson/verjson-git-runners/app/internal/dockerx"
+	"git.159-195-78-163.nip.io/Verjson/verjson-git-runners/app/internal/ghc"
+	"git.159-195-78-163.nip.io/Verjson/verjson-git-runners/app/internal/kinds"
 )
 
 var (

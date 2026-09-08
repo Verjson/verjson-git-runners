@@ -61,7 +61,7 @@ import sys
 
 config = json.load(open(sys.argv[1], encoding="utf-8"))
 assert config["schemaVersion"] == 1
-assert config["repository"] == "Verjson/verjson-github-runner"
+assert config["repository"] == "Verjson/verjson-git-runners"
 assert config["registryNamespace"] == "ghcr.io/verjson"
 assert config["nextStableVersion"] == "0.2.1"
 assert config.get("privateNodePackages", []) == []
