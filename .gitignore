@@ -16,3 +16,6 @@
 __pycache__/
 *.py[cod]
 AGENTS.md
+
+# Generated credential-free producer plans and test evidence
+.verjson-ci/

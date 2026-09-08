@@ -26,6 +26,31 @@ class BuildConfigTest(unittest.TestCase):
         self.assertNotIn(data['manager']['destination'], runner['kubernetes'].values())
         self.assertEqual(runner['kubernetes']['helper_image'], data['helper']['destination'])
 
+    def test_reviewed_runtime_adds_only_its_exact_digest_to_job_allowlist(self):
+        data = contract()
+        data['runtime'] = {
+            'sourceRepository': 'https://github.com/Verjson/verjson-ci',
+            'sourceCommit': 'a' * 40,
+            'destination': 'nexus.example.org/verjson/ci/candidates@sha256:' + '4' * 64,
+            'artifactLicenseInventoryDigest': 'sha256:' + '5' * 64,
+            'trust': 'reviewed-bootstrap-candidate',
+        }
+        allowed = tomllib.loads(config.render(data))['runners'][0]['kubernetes']['allowed_images']
+        self.assertEqual(allowed, [data['build']['destination'], data['runtime']['destination']])
+        for key, value in [
+            ('sourceRepository', 'https://github.com/other/verjson-ci'),
+            ('sourceCommit', 'main'),
+            ('destination', 'evil.example.org/verjson/ci/candidates@sha256:' + '4' * 64),
+            ('destination', 'nexus.example.org/verjson/ci/other@sha256:' + '4' * 64),
+            ('destination', 'nexus.example.org/verjson/ci/candidates:latest'),
+            ('artifactLicenseInventoryDigest', 'sha256:short'),
+            ('trust', 'signed-stable-release'),
+        ]:
+            changed = copy.deepcopy(data)
+            changed['runtime'][key] = value
+            with self.subTest(key=key, value=value), self.assertRaises(config.ContractError):
+                config.render(changed)
+
     def test_jobs_have_nonroot_bounded_resources_without_host_mounts_or_credentials(self):
         parsed = tomllib.loads(config.render(contract()))
         self.assertEqual(parsed['concurrent'], 1)

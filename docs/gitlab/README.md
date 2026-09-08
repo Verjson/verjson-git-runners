@@ -82,3 +82,55 @@ in [runner #198](https://github.com/Verjson/verjson-github-runner/issues/198) an
 
 References: [Kubernetes executor configuration](https://docs.gitlab.com/runner/executors/kubernetes/)
 and [version-coupled helper images](https://docs.gitlab.com/runner/configuration/advanced-configuration/#helper-image).
+
+## Producer pipeline and evidence
+
+The primary repository consumes `Verjson/verjson-ci` through an immutable GitLab
+include. `scripts/verify-gitlab.sh` runs mocked source/security tests, Go tests and
+contract checks in the producer-owned Nexus Go image. It has no host Docker socket;
+the Docker-daemon ephemeral-container integration test remains a separate required
+rollout receipt rather than an implied pass in this job.
+
+Successful checks create exactly three credential-free review artifacts under
+`.verjson-ci/producer-evidence/`: `source-manifest.json`, `license-inventory.json`
+and `test-receipt.json`. The license inventory is an aggregate of signed source
+SBOM/provenance references and a reviewed public verification-receipt digest. It
+is not the complete SBOM content or legal clearance. The original signed manifest
+and public verification receipt are pinned byte-for-byte; the historical GitHub
+source repository and source commit remain distinct from the GitLab dispatch SHA.
+
+The resulting `.verjson-ci/producer-plan.json` binds those artifacts to all six
+Nexus destination references and their original image digests. The canonical CLI
+validates it before a protected manual web publication job can request a
+short-lived OIDC token. The external broker must independently authenticate that
+token, review the full plan and evidence, prevent overwrites, and verify Nexus
+bytes. Local JSON checks and a checked-in verification receipt do not replace
+live attestation verification or broker authorization.
+
+Local source checks require the same producer Go image and a real checkout SHA:
+
+```sh
+VERJSON_PRODUCER_DISPATCH_COMMIT="$(git rev-parse HEAD)" scripts/verify-gitlab.sh
+```
+
+The script writes no plan on failed checks. Existing generated artifacts are not
+proof of a new pass; consume only successful pipeline job artifacts matching the
+approved dispatch SHA and their recorded hashes.
+
+The renderer also accepts one optional `runtime` record for the canonical CLI
+bootstrap candidate. Its exact fields are `sourceRepository` (fixed to
+`https://github.com/Verjson/verjson-ci`), `sourceCommit` (the reviewed immutable
+commit), `destination` (the approved registry's
+`verjson/ci/candidates@sha256:…` reference), `artifactLicenseInventoryDigest`, and
+`trust` (exactly `reviewed-bootstrap-candidate`). It adds only that digest to the
+allowed job images. The producer Go image remains the default build image.
+
+This bootstrap image is built from reviewed canonical CI source with artifact
+license enforcement and is not represented as a signed stable coordinated
+release. The deployment owner verifies its inventory digest, source commit and
+Nexus bytes before allowing it. The renderer checks structure and exact image
+allowlisting; metadata alone cannot establish provenance.
+
+The reviewed bootstrap metadata consumed by the deployment owner is recorded in
+[`.verjson/runtime-candidate.json`](../../.verjson/runtime-candidate.json). The
+include pins the same source commit and image digest.
