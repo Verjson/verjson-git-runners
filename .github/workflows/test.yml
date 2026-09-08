@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Validate Nexus-pinned GitLab build configuration
+        run: python3 tests/gitlab_build_config_test.py
       - name: Run entrypoint unit test suite
         run: bash tests/entrypoint_test.sh
       - name: Validate PowerShell setup architecture labels
