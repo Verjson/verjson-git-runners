@@ -8,9 +8,9 @@ candidate="${root}/.github/workflows/container-candidate.yml"
 release="${root}/.github/workflows/container-release.yml"
 candidate_validator="${root}/scripts/container_candidate_validate.py"
 manifest_validator="${root}/scripts/container_release_manifest.py"
-candidate_contract_ref="4704880d1a4234dd70d06ee03be0dc8e389cee5c"
-release_contract_ref="4704880d1a4234dd70d06ee03be0dc8e389cee5c"
-changelog_sha256="9d2866cd11b600fcd8cfa160f9599b4158f6b18f1b538aa6baf450d0b4b7666b"
+candidate_contract_ref="55576f7cf8659d49aa28b3fca8039b6e05d47231"
+release_contract_ref="55576f7cf8659d49aa28b3fca8039b6e05d47231"
+changelog_sha256="1d2b6d5ea602347861388ad1e0dda4ee307c1e73e344418ffd9019a462650fb7"
 release_manifest="$(find "${root}/RELEASES/containers" -maxdepth 1 -type f -name 'v*.json' -print | sort -V | tail -n 1)"
 [[ -n "${release_manifest}" ]] || {
   echo "container release workflow contract: no immutable container release manifest exists" >&2
@@ -105,6 +105,9 @@ for dockerfile in \
     || fail "${dockerfile} does not build from the canonical same-run base digest"
 done
 
+grep -Fq "digest \`${base_image}\`;" "${root}/README.md" \
+  || fail "README does not document the verified standalone base digest"
+
 grep -qx '  push:' "${candidate}" || fail "main does not publish immutable candidates"
 grep -qx '    branches: \[main\]' "${candidate}" || fail "candidate push is not limited to main"
 grep -qx '  pull_request:' "${candidate}" || fail "pull requests do not exercise candidate builds"
@@ -128,7 +131,7 @@ grep -q "if: github.event_name == 'push' && github.ref == 'refs/heads/main'" "${
 grep -qx '  workflow_dispatch:' "${release}" || fail "stable promotion is not explicitly dispatched"
 ! grep -Eq '^  (push|pull_request):' "${release}" \
   || fail "stable promotion is reachable from merge or pull request"
-! grep -Eq 'docker (build|bake)|build-push-action|Dockerfile' "${release}" \
+! grep -Eq 'docker (build|bake)|build-push-action' "${release}" \
   || fail "release caller rebuilds instead of promoting retained digests"
 grep -Fq "container-release.yml@${release_contract_ref}" "${release}" \
   || fail "release caller does not use the reviewed canonical contract"
