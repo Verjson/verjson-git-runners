@@ -14,15 +14,20 @@
 # content are therefore derived from the tree, never named inline.
 set -euo pipefail
 
-CONTRACT_REF="b4b5cb7e8ccf9eede35516eafbbe62179042254d"
-CONTRACT_SHA256="9d2866cd11b600fcd8cfa160f9599b4158f6b18f1b538aa6baf450d0b4b7666b"
-ADR_INDEX_SHA256="18d9eb95158d089e49b02f1bd868021c9e33a2fc946851c4d2efe98ec37b3729"
+CONTRACT_REF="55576f7cf8659d49aa28b3fca8039b6e05d47231"
+CONTRACT_SHA256="1d2b6d5ea602347861388ad1e0dda4ee307c1e73e344418ffd9019a462650fb7"
+ADR_INDEX_SHA256="49f75e0fbc22948a0e236b246e8c31513b9862ad0ba8f46d4f870181ed88029c"
 EXPECTED_RELEASE_SCOPE="@verjson"
 EXPECTED_RELEASE_NODE_VERSION="24"
 EXPECTED_RELEASE_PACKAGE_DIRS_JSON='["."]'
 EXPECTED_RELEASE_PACKAGE_DIRS_SHELL='.'
+EXPECTED_RELEASE_ASSETS_JSON='[]'
+EXPECTED_RELEASE_APPROVED_INTERNAL_PACKAGES=''
+EXPECTED_RELEASE_LANE_PREFLIGHT_SHA256=''
 EXPECTED_RELEASE_UPLOAD_ARTIFACT='actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1'
 EXPECTED_RELEASE_DOWNLOAD_ARTIFACT='actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1'
+EXPECTED_RELEASE_CACHE_SAVE='actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0'
+EXPECTED_RELEASE_CACHE_RESTORE='actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0'
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 renderer="$root/scripts/render-next.sh"
@@ -175,6 +180,29 @@ if [ -e "$renovate_attribution_workflow" ]; then
     || fail "$renovate_attribution_workflow is not limited to the reviewed pull_request_target events"
   ! grep -qE '^  (pull_request|push|workflow_dispatch|workflow_run|schedule):' "$renovate_attribution_workflow" \
     || fail "$renovate_attribution_workflow exposes an unreviewed trigger"
+  [ "$(grep -Ec '^  renovate-changelog:[[:space:]]*$' "$renovate_attribution_workflow")" = 1 ] \
+    || fail "$renovate_attribution_workflow must contain exactly one Renovate attribution job"
+  renovate_attribution_job="$(awk '
+    /^  renovate-changelog:[[:space:]]*$/ { capture = 1; next }
+    capture && /^  [A-Za-z0-9_.-]+:[[:space:]]*$/ { exit }
+    capture { print }
+  ' "$renovate_attribution_workflow")"
+  renovate_admission="$(awk '
+    /^    if: >-[[:space:]]*$/ { capture = 1 }
+    capture && /^    uses:/ { exit }
+    capture { print }
+  ' <<<"$renovate_attribution_job")"
+  expected_renovate_admission="$(cat <<'RENOVATE_ADMISSION'
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.pull_request.user.login == 'app/renovate' ||
+       github.event.pull_request.user.login == 'renovate[bot]') &&
+      startsWith(github.event.pull_request.head.ref, 'renovate/')
+RENOVATE_ADMISSION
+  )"
+  [ "$(grep -Ec '^    if:' <<<"$renovate_attribution_job")" = 1 ] \
+    && [ "$renovate_admission" = "$expected_renovate_admission" ] \
+    || fail "$renovate_attribution_workflow does not preserve the exact same-repository Renovate admission gate"
   [ "$(grep -Ec '^ +uses: Verjson/\.github/\.github/workflows/renovate-changelog\.yml@[0-9a-f]{40}$' "$renovate_attribution_workflow")" = 1 ] \
     && grep -qE "^ +uses: Verjson/\\.github/\\.github/workflows/renovate-changelog\\.yml@$CONTRACT_REF$" "$renovate_attribution_workflow" \
     || fail "$renovate_attribution_workflow does not call the trusted attribution workflow at the shared pin"
@@ -280,83 +308,119 @@ def strip_comment(line):
 lines = [strip_comment(line) for line in raw_lines]
 
 
-def split_top_level(text):
-    """Split a flow collection body on commas that are not nested or quoted."""
-    parts = []
-    current = []
-    depth = 0
+def mapping_entry(text):
+    """Return a strict scalar mapping key/value; reject YAML ambiguity."""
     quote = None
-    for char in text:
+    colon = None
+    for index, char in enumerate(text):
         if quote:
-            current.append(char)
             if char == quote:
                 quote = None
             continue
         if char in "'\"":
             quote = char
-            current.append(char)
-            continue
-        if char in "[{":
-            depth += 1
-        elif char in "]}":
-            depth -= 1
-        elif char == "," and depth == 0:
-            parts.append("".join(current))
-            current = []
-            continue
-        current.append(char)
-    if "".join(current).strip():
-        parts.append("".join(current))
-    return [part.strip() for part in parts if part.strip()]
+        elif char == ":":
+            colon = index
+            break
+        elif char in "{}[]&*!":
+            raise ValueError("flow collections, tags, and aliases are unsupported")
+    if quote or colon is None:
+        raise ValueError("malformed mapping entry")
+    raw_key = text[:colon].strip()
+    if not raw_key or raw_key == "<<":
+        raise ValueError("empty or merged mapping key")
+    quoted = len(raw_key) >= 2 and raw_key[0] == raw_key[-1] and raw_key[0] in "'\""
+    if quoted:
+        key = raw_key[1:-1]
+        if raw_key[0] in key or "\\" in key:
+            raise ValueError("escaped mapping keys are unsupported")
+    else:
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+", raw_key):
+            raise ValueError("non-plain mapping key")
+        key = raw_key
+    return key, quoted, text[colon + 1:].strip()
 
 
-def keys_of_flow(text):
-    text = text.strip()
-    if text.startswith("{") and text.endswith("}"):
-        return [
-            part.split(":", 1)[0].strip().strip("'\"")
-            for part in split_top_level(text[1:-1])
-        ]
-    if text.startswith("[") and text.endswith("]"):
-        return [part.strip().strip("'\"") for part in split_top_level(text[1:-1])]
-    return [text.strip("'\"")]
+def trigger_identity(key, quoted):
+    if quoted:
+        return "on" if key == "on" else None
+    return "on" if key.casefold() in {"y", "yes", "true", "on"} else None
 
 
-TRIGGER_KEY = re.compile(r"""^(?:on|'on'|"on"|true|True)\s*:(.*)$""")
+EXPECTED_TRIGGER_BLOCK = (
+    (2, "workflow_dispatch:"),
+    (4, "inputs:"),
+    (6, "version:"),
+    (8, "description: Exact next SemVer tag, including its v or stream-v prefix"),
+    (8, "required: true"),
+    (8, "type: string"),
+    (6, "prefix:"),
+    (8, "description: Exact version namespace prefix; independent from component"),
+    (8, "required: false"),
+    (8, "type: string"),
+    (8, "default: v"),
+    (6, "expected_head:"),
+    (8, "description: Optional exact default-branch head derived by release-propose"),
+    (8, "required: false"),
+    (8, "type: string"),
+    (8, "default: ''"),
+    (6, "selector_digest:"),
+    (8, "description: Optional canonical selection digest derived by release-propose"),
+    (8, "required: false"),
+    (8, "type: string"),
+    (8, "default: ''"),
+    (6, "fragments:"),
+    (8, "description: Newline-separated NEXT fragment filenames; empty selects the requested component stream"),
+    (8, "required: false"),
+    (8, "type: string"),
+    (8, "default: ''"),
+    (6, "component:"),
+    (8, "description: Optional component stream; empty selects only unscoped fragments"),
+    (8, "required: false"),
+    (8, "type: string"),
+    (8, "default: ''"),
+)
 
 
 def trigger_names():
-    for index, line in enumerate(lines):
-        match = TRIGGER_KEY.match(line)
-        if not match:
-            continue
-        inline = match.group(1).strip()
+    top_keys = set()
+    trigger_entries = []
+    try:
+        for index, line in enumerate(lines):
+            if not line.strip():
+                continue
+            if "\t" in line[: len(line) - len(line.lstrip())]:
+                raise ValueError("tab indentation")
+            if line[:1].isspace():
+                continue
+            if line.startswith(("---", "...", "%", "- ")):
+                raise ValueError("unsupported top-level YAML form")
+            key, quoted, value = mapping_entry(line)
+            identity = trigger_identity(key, quoted) or key
+            if identity in top_keys:
+                raise ValueError("duplicate YAML-equivalent top-level key")
+            top_keys.add(identity)
+            if trigger_identity(key, quoted):
+                trigger_entries.append((index, value))
+        if len(trigger_entries) != 1:
+            raise ValueError("missing or duplicate YAML-equivalent trigger key")
+        index, inline = trigger_entries[0]
         if inline:
-            return keys_of_flow(inline)
+            raise ValueError("trigger mapping must use canonical block form")
         block = []
-        for following in lines[index + 1:]:
+        for following in raw_lines[index + 1:]:
             if not following.strip():
                 continue
-            if not following[:1].isspace():
+            indent = len(following) - len(following.lstrip())
+            if indent == 0:
                 break
-            block.append(following)
-        if not block:
-            return None
-        indent = min(len(line) - len(line.lstrip()) for line in block)
-        names = []
-        for entry in block:
-            if len(entry) - len(entry.lstrip()) != indent:
-                continue
-            text = entry.strip()
-            if text.startswith("- "):
-                text = text[2:].strip()
-            elif text == "-":
-                continue
-            name = text.split(":", 1)[0].strip().strip("'\"")
-            if name:
-                names.append(name)
-        return names or None
-    return None
+            block.append((indent, following.strip()))
+        if tuple(block) != EXPECTED_TRIGGER_BLOCK:
+            raise ValueError("workflow_dispatch input schema differs from the generated contract")
+        return ["workflow_dispatch"]
+    except ValueError as error:
+        problems.append("has an ambiguous or malformed top-level trigger mapping: %s" % error)
+        return None
 
 
 triggers = trigger_names()
@@ -520,8 +584,10 @@ while IFS= read -r release_workflow; do
     release_mode=release-node
   elif grep -q "gen-changelog-caller.sh release-artifact $CONTRACT_REF" "$release_workflow"; then
     release_mode=release-artifact
+  elif grep -q "gen-changelog-caller.sh release-snapshot $CONTRACT_REF" "$release_workflow"; then
+    release_mode=release-snapshot
   else
-    fail "$release_workflow is not a generated release caller at $CONTRACT_REF. Regenerate it: scripts/gen-changelog-caller.sh release-node $CONTRACT_REF > .github/workflows/release.yml (or release-artifact for a non-npm publication)"
+    fail "$release_workflow is not a generated release caller at $CONTRACT_REF. Regenerate it: scripts/gen-changelog-caller.sh release-node $CONTRACT_REF > .github/workflows/release.yml (or release-artifact for GitHub Release assets, or release-snapshot when the repository publishes nothing from the release workflow)"
   fi
   grep -qF "run-name: Release \${{ inputs.version }} \${{ inputs.selector_digest || 'manual' }}" "$release_workflow" \
     || fail "$release_workflow lacks the exact-version run title required for idempotent dispatch"
@@ -534,10 +600,11 @@ while IFS= read -r release_workflow; do
   # for setup-node's uses-with fields. A literal expression remains the same
   # runtime string but is intentionally dynamic to Renovate (#700). release-node
   # stamps this in both its verify and publish jobs (node-release.yml receives
-  # it too); release-artifact has no publish-side Node job, so it appears only
-  # once, in verify's setup-node.
+  # it too); release-artifact and release-snapshot have no publish-side Node
+  # job, so it appears only once, in verify's setup-node.
   release_node_occurrences=2
-  [ "$release_mode" = release-artifact ] && release_node_occurrences=1
+  { [ "$release_mode" = release-artifact ] || [ "$release_mode" = release-snapshot ]; } \
+    && release_node_occurrences=1
   printf -v expected_node_version "node-version: \${{ '%s' }}" "$EXPECTED_RELEASE_NODE_VERSION"
   [ "$(awk -v expected="$expected_node_version" '
       { line = $0; sub(/^[[:space:]]+/, "", line); sub(/[[:space:]]+$/, "", line) }
@@ -628,6 +695,11 @@ while IFS= read -r release_workflow; do
     in_job && /^  [A-Za-z0-9_.-]+:[[:space:]]*$/ && $0 !~ /^  build:/ { exit }
     in_job { print }
   ' "$release_workflow")"
+  acquisition_job="$(awk '
+    /^  acquire-private-dependencies:[[:space:]]*$/ { in_job = 1 }
+    in_job && /^  [A-Za-z0-9_.-]+:[[:space:]]*$/ && $0 !~ /^  acquire-private-dependencies:/ { exit }
+    in_job { print }
+  ' "$release_workflow")"
   stamp_before() {
     local job="$1" consumer_pattern="$2" stamp_line consumer_line
     stamp_line="$(grep -n -m1 \
@@ -656,6 +728,59 @@ while IFS= read -r release_workflow; do
     grep -qF "if: always() && needs.verify.result == 'success' && (needs.snapshot.result == 'success' || needs.snapshot.result == 'skipped')" \
       <<<"$publish_job" \
       || fail "$release_workflow cannot safely resume publication after reusing an immutable snapshot"
+    # node-release.yml cannot refuse an unpublishable package in time: it only
+    # ever runs as `publish`, after `snapshot` has already pushed the immutable
+    # tag. `verify` is the last stage that still precedes that push (#1206).
+    private_guard_step="$(awk '
+      /^      - name: Refuse a package this release can never publish$/ { found = 1; next }
+      found && /^      - / { exit }
+      found { print }
+    ' <<<"$verify_job")"
+    grep -qF 'private === true' <<<"$private_guard_step" \
+      && grep -qF 'exit 1' <<<"$private_guard_step" \
+      || fail "$release_workflow does not refuse a private, unpublishable package before the snapshot is tagged (#1206)"
+  elif [ "$release_mode" = release-snapshot ]; then
+    # release-snapshot: the adopter publishes NOTHING from the release workflow
+    # (#1206). Its whole reason to exist is reaching changelog-release.yml, so
+    # verify -> snapshot is asserted exactly as for the other two modes above and
+    # publish is reduced to creating the tag's GitHub Release from the immutable
+    # snapshot. The assertions below are therefore mostly NEGATIVE: any build
+    # matrix, private-dependency acquisition, artifact attachment or reusable
+    # publication delegation appearing here is a hand edit, not this mode.
+    [ -z "$build_job" ] \
+      || fail "$release_workflow has a build job; release-snapshot publishes nothing and must be regenerated as release-artifact if it now ships assets (#1206)"
+    [ -z "$acquisition_job" ] \
+      || fail "$release_workflow adds private dependency acquisition absent from the generated contract"
+    ! grep -qF 'uses: Verjson/.github/.github/workflows/node-release.yml' <<<"$publish_job" \
+      || fail "$release_workflow delegates publication to node-release.yml; regenerate it as release-node instead of hand-editing a snapshot-only caller (#1206)"
+    grep -qF 'needs: [verify, snapshot]' <<<"$publish_job" \
+      || fail "$release_workflow does not gate publication on both verification and snapshot state"
+    grep -qF "if: always() && needs.verify.result == 'success' && (needs.snapshot.result == 'success' || needs.snapshot.result == 'skipped')" \
+      <<<"$publish_job" \
+      || fail "$release_workflow cannot safely resume publication after reusing an immutable snapshot"
+    grep -qF 'ref: ${{ inputs.version }}' <<<"$publish_job" \
+      || fail "$release_workflow publishes from a ref other than the tagged snapshot"
+    grep -qF 'test -f "CHANGELOG/$VERSION.md"' <<<"$publish_job" \
+      || fail "$release_workflow publish job does not verify the immutable release note before publishing"
+    grep -qF '# RESTART_SAFE_GH_RELEASE_BEGIN' <<<"$publish_job" \
+      && grep -qF '# RESTART_SAFE_GH_RELEASE_END' <<<"$publish_job" \
+      || fail "$release_workflow publish job does not use the restart-safe GitHub Release publication shape (#862)"
+    ! grep -qE 'gh release upload|actions/(download|upload)-artifact' <<<"$publish_job" \
+      || fail "$release_workflow publish job attaches release artifacts; release-snapshot attaches none, so regenerate it as release-artifact (#1206)"
+    # The one job holding contents: write in this mode. It runs no adopter-owned
+    # hook, so nothing here needs a secret beyond the job's own GITHUB_TOKEN.
+    publish_permissions="$(awk '
+      /^    permissions:[[:space:]]*$/ { in_permissions = 1; next }
+      in_permissions && /^    [^[:space:]]/ { exit }
+      in_permissions { print }
+    ' <<<"$publish_job")"
+    publish_permissions_effective="$(sed 's/#.*//' <<<"$publish_permissions" | sed '/^[[:space:]]*$/d')"
+    [ "$(grep -c . <<<"$publish_permissions_effective")" -eq 1 ] \
+      && grep -qE '^[[:space:]]+contents:[[:space:]]+write[[:space:]]*$' <<<"$publish_permissions_effective" \
+      || fail "$release_workflow publish job grants more than contents-write; a snapshot-only release publishes nothing else (#1206)"
+    [ "$(sed 's/#.*//' <<<"$publish_job" | grep -Ec 'secrets\b')" -eq 1 ] \
+      && grep -qF 'GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}' <<<"$publish_job" \
+      || fail "$release_workflow publish job references a secret other than the job's own GITHUB_TOKEN; a snapshot-only release needs no publication credential (#1206)"
   else
     # release-artifact: publication is not a reusable-workflow delegation —
     # there is no artifact-release.yml counterpart to node-release.yml — so the
@@ -663,16 +788,164 @@ while IFS= read -r release_workflow; do
     # restart-safe GitHub Release logic itself (#975).
     [ -n "$build_job" ] \
       || fail "$release_workflow has no build job; release-artifact requires a caller-declared build matrix (#975)"
+    if [ -n "$EXPECTED_RELEASE_APPROVED_INTERNAL_PACKAGES" ]; then
+      [ -n "$acquisition_job" ] \
+        || fail "$release_workflow omits the independently authorized private dependency acquisition"
+      [ "$(grep -cF "APPROVED_INTERNAL_PACKAGES: '$EXPECTED_RELEASE_APPROVED_INTERNAL_PACKAGES'" <<<"$acquisition_job")" -eq 1 ] \
+        || fail "$release_workflow private package allowlist differs from the generated contract"
+      python3 - "$root/package-lock.json" "$EXPECTED_RELEASE_APPROVED_INTERNAL_PACKAGES" <<'PY' \
+        || fail "$release_workflow repository lock differs from the generated private package authorization"
+import base64
+import json
+import re
+import sys
+from pathlib import Path
+from urllib.parse import unquote, urlparse
+
+lock = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+approved = set(filter(None, sys.argv[2].split(",")))
+if lock.get("lockfileVersion") not in (2, 3) or not isinstance(lock.get("packages"), dict):
+    raise SystemExit(1)
+found = set()
+for path, entry in lock["packages"].items():
+    if not path or "node_modules/" not in path:
+        continue
+    name = path.rsplit("node_modules/", 1)[1]
+    if not name.startswith("@verjson/"):
+        continue
+    if name not in approved or (entry.get("name") not in (None, name)):
+        raise SystemExit(1)
+    resolved = entry.get("resolved", "")
+    parsed = urlparse(resolved)
+    resolved_path = unquote(parsed.path)
+    parts = resolved_path.split("/")
+    integrity = entry.get("integrity")
+    if (parsed.scheme != "https" or parsed.netloc != "npm.pkg.github.com"
+            or parsed.query or parsed.fragment or resolved != f"https://npm.pkg.github.com{resolved_path}"
+            or "\\" in resolved_path or len(parts) != 6 or parts[1] != "download"
+            or f"{parts[2]}/{parts[3]}" != name or not parts[4] or not parts[5]
+            or not isinstance(integrity, str)
+            or re.fullmatch(r"sha512-[A-Za-z0-9+/]{86}==", integrity) is None):
+        raise SystemExit(1)
+    try:
+        digest = base64.b64decode(integrity.removeprefix("sha512-"), validate=True)
+    except ValueError:
+        raise SystemExit(1)
+    if len(digest) != 64:
+        raise SystemExit(1)
+    found.add(name)
+if found != approved:
+    raise SystemExit(1)
+PY
+    else
+      [ -z "$acquisition_job" ] \
+        || fail "$release_workflow adds private dependency acquisition absent from the generated contract"
+    fi
     grep -qE '^[[:space:]]+strategy:[[:space:]]*$' <<<"$build_job" \
-      && grep -qE '^[[:space:]]+build-runner:[[:space:]]*\[.+\][[:space:]]*$' <<<"$build_job" \
+      && grep -qE '^[[:space:]]+include:[[:space:]]*$' <<<"$build_job" \
+      && grep -qE '^[[:space:]]+- build-runner:[[:space:]]*[^[:space:]].*$' <<<"$build_job" \
       || fail "$release_workflow build job has no non-empty build-runner matrix"
-    grep -qF 'needs: [verify, snapshot]' <<<"$build_job" \
-      || fail "$release_workflow does not gate the build matrix on both verification and snapshot state"
-    grep -qF "if: always() && needs.verify.result == 'success' && (needs.snapshot.result == 'success' || needs.snapshot.result == 'skipped')" \
-      <<<"$build_job" \
-      || fail "$release_workflow cannot safely resume the build matrix after reusing an immutable snapshot"
+    while IFS= read -r runner_selector; do
+      runner_selector="${runner_selector#*: }"
+      [[ "$runner_selector" =~ ^\'[A-Za-z0-9][A-Za-z0-9._-]*\'$ ]] \
+        && [[ ! "${runner_selector:1:${#runner_selector}-2}" =~ ^(vars|inputs|matrix|needs|github|env|secrets)\. ]] \
+        || [[ "$runner_selector" =~ ^\$\{\{[[:space:]]fromJSON\(vars\.CI_LANE_TRUSTED_(MACOS|WINDOWS)\)[[:space:]]\}\}$ ]] \
+        || fail "$release_workflow build matrix contains an unreviewed runner selector: $runner_selector (ADR 0103)"
+      if [[ "$runner_selector" =~ ^\'.*\'$ ]] \
+        && [[ "${runner_selector:1:${#runner_selector}-2}" =~ ^(macos|windows)- ]]; then
+        fail "$release_workflow uses a literal metered OS selector forbidden by ADR 0103: $runner_selector"
+      fi
+      if [[ "$runner_selector" =~ vars\.(CI_LANE_TRUSTED_(MACOS|WINDOWS)) ]]; then
+        lane_name="${BASH_REMATCH[1]}"
+        grep -qF "$lane_name: \${{ vars.$lane_name }}" <<<"$verify_job" \
+          && grep -qF 'Validate required OS-scoped build lanes' <<<"$verify_job" \
+          && grep -qF 'must be a non-empty JSON runner-label array' <<<"$verify_job" \
+          || fail "$release_workflow does not fail loudly before snapshot when $lane_name is unset or malformed"
+      fi
+    done < <(grep -E '^[[:space:]]+- build-runner:' <<<"$build_job")
+    if [ -n "$EXPECTED_RELEASE_LANE_PREFLIGHT_SHA256" ]; then
+      lane_preflight="$(awk '
+        /^      - name: Validate required OS-scoped build lanes$/ { found = 1 }
+        found && /^      - name:/ && !/Validate required OS-scoped build lanes$/ { exit }
+        found { print }
+      ' <<<"$verify_job")"
+      if command -v sha256sum >/dev/null 2>&1; then
+        lane_preflight_sha256="$(printf '%s' "$lane_preflight" | sha256sum | cut -d' ' -f1)"
+      elif command -v shasum >/dev/null 2>&1; then
+        lane_preflight_sha256="$(printf '%s' "$lane_preflight" | shasum -a 256 | cut -d' ' -f1)"
+      else
+        fail "cannot verify the provenance-authorized OS lane preflight without a SHA-256 tool"
+      fi
+      [ "$lane_preflight_sha256" = "$EXPECTED_RELEASE_LANE_PREFLIGHT_SHA256" ] \
+        || fail "$release_workflow OS lane preflight logic differs from the provenance-authorized contract"
+    fi
+    if [ -n "$acquisition_job" ]; then
+      grep -qF 'timeout-minutes: 45' <<<"$acquisition_job" \
+        || fail "$release_workflow acquisition matrix exceeds ADR 0103's 45-minute bound"
+      grep -qF 'needs: [verify, snapshot, acquire-private-dependencies]' <<<"$build_job" \
+        || fail "$release_workflow private build matrix is not gated on credentialed acquisition"
+      grep -qF "if: always() && needs.verify.result == 'success' && (needs.snapshot.result == 'success' || needs.snapshot.result == 'skipped') && needs.acquire-private-dependencies.result == 'success'" \
+        <<<"$build_job" \
+        || fail "$release_workflow private build matrix can run without successful acquisition"
+      acquisition_permissions="$(awk '/^    permissions:/{seen=1;next} seen && /^    [^ ]/{exit} seen{print}' <<<"$acquisition_job" | sed 's/#.*//' | sed '/^[[:space:]]*$/d')"
+      [ "$(grep -c . <<<"$acquisition_permissions")" -eq 2 ] \
+        && grep -qE '^[[:space:]]+contents:[[:space:]]+read[[:space:]]*$' <<<"$acquisition_permissions" \
+        && grep -qE '^[[:space:]]+packages:[[:space:]]+read[[:space:]]*$' <<<"$acquisition_permissions" \
+        || fail "$release_workflow private acquisition must have exactly contents-read and packages-read"
+      grep -qF 'ref: ${{ inputs.version }}' <<<"$acquisition_job" \
+        && grep -qF 'persist-credentials: false' <<<"$acquisition_job" \
+        && grep -qF 'npm ci --ignore-scripts --audit=false --fund=false' <<<"$acquisition_job" \
+        && grep -qF 'NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}' <<<"$acquisition_job" \
+        && grep -qF "uses: $EXPECTED_RELEASE_CACHE_SAVE" <<<"$acquisition_job" \
+        || fail "$release_workflow private acquisition weakened its credentialless handoff"
+      [ "$(sed 's/#.*//' <<<"$acquisition_job" | grep -Ec 'secrets\b')" -eq 1 ] \
+        && ! grep -qE 'scripts/release-|npm (run|test|exec)' <<<"$acquisition_job" \
+        || fail "$release_workflow private acquisition exposes credentials to repository execution or another secret"
+      grep -qF "uses: $EXPECTED_RELEASE_CACHE_RESTORE" <<<"$build_job" \
+        && grep -qF 'fail-on-cache-miss: true' <<<"$build_job" \
+        && grep -qF "NODE_AUTH_TOKEN: ''" <<<"$build_job" \
+        || fail "$release_workflow private build does not restore dependencies with credentials blanked"
+      acquisition_selectors="$(grep -E '^[[:space:]]+- build-runner:' <<<"$acquisition_job" | sed 's/^[[:space:]]*//')"
+      build_selectors="$(grep -E '^[[:space:]]+- build-runner:' <<<"$build_job" | sed 's/^[[:space:]]*//')"
+      [ "$acquisition_selectors" = "$build_selectors" ] \
+        || fail "$release_workflow private acquisition and credentialless build runner matrices differ"
+      acquisition_indices="$(grep -E '^[[:space:]]+dependency-index:' <<<"$acquisition_job" | sed 's/^[[:space:]]*//')"
+      build_indices="$(grep -E '^[[:space:]]+dependency-index:' <<<"$build_job" | sed 's/^[[:space:]]*//')"
+      [ "$acquisition_indices" = "$build_indices" ] \
+        || fail "$release_workflow private acquisition and credentialless build dependency indices differ"
+      expected_index=0
+      while IFS= read -r dependency_index; do
+        [ "$dependency_index" = "dependency-index: $expected_index" ] \
+          || fail "$release_workflow dependency indices must be unique canonical matrix positions"
+        expected_index=$((expected_index + 1))
+      done <<<"$build_indices"
+      [ "$expected_index" -gt 0 ] \
+        || fail "$release_workflow private dependency matrix has no bound index"
+      while IFS= read -r runner_selector; do
+        runner_selector="${runner_selector#*: }"
+        [[ "$runner_selector" =~ ^\'[A-Za-z0-9][A-Za-z0-9._-]*\'$ ]] \
+          && [[ ! "${runner_selector:1:${#runner_selector}-2}" =~ ^(vars|inputs|matrix|needs|github|env|secrets)\. ]] \
+          || [[ "$runner_selector" =~ ^\$\{\{[[:space:]]fromJSON\(vars\.CI_LANE_TRUSTED_(MACOS|WINDOWS)\)[[:space:]]\}\}$ ]] \
+          || fail "$release_workflow acquisition matrix contains an unreviewed runner selector: $runner_selector (ADR 0103)"
+        if [[ "$runner_selector" =~ ^\'.*\'$ ]] \
+          && [[ "${runner_selector:1:${#runner_selector}-2}" =~ ^(macos|windows)- ]]; then
+          fail "$release_workflow acquisition uses a literal metered OS selector forbidden by ADR 0103: $runner_selector"
+        fi
+      done < <(grep -E '^[[:space:]]+- build-runner:' <<<"$acquisition_job")
+      [ "$(grep -cF 'key: release-dependencies-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.dependency-index }}' <<<"$acquisition_job")" -eq 1 ] \
+        && [ "$(grep -cF 'key: release-dependencies-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.dependency-index }}' <<<"$build_job")" -eq 1 ] \
+        || fail "$release_workflow dependency cache keys are not bound identically to run, attempt, and matrix OS index"
+    else
+      grep -qF 'needs: [verify, snapshot]' <<<"$build_job" \
+        || fail "$release_workflow does not gate the build matrix on both verification and snapshot state"
+      grep -qF "if: always() && needs.verify.result == 'success' && (needs.snapshot.result == 'success' || needs.snapshot.result == 'skipped')" \
+        <<<"$build_job" \
+        || fail "$release_workflow cannot safely resume the build matrix after reusing an immutable snapshot"
+    fi
     grep -qF 'ref: ${{ inputs.version }}' <<<"$build_job" \
       || fail "$release_workflow builds artifacts from a ref other than the tagged snapshot"
+    grep -qF 'timeout-minutes: 45' <<<"$build_job" \
+      || fail "$release_workflow build matrix exceeds ADR 0103's 45-minute bound"
     grep -qF -- '-x scripts/release-build.sh' <<<"$build_job" \
       || fail "$release_workflow does not require an executable scripts/release-build.sh build hook"
     grep -qF "uses: $EXPECTED_RELEASE_UPLOAD_ARTIFACT" <<<"$build_job" \
@@ -754,6 +1027,7 @@ while IFS= read -r release_workflow; do
       "$expected_node_version" \
       "scope: '$EXPECTED_RELEASE_SCOPE'" \
       "package-dirs: '$EXPECTED_RELEASE_PACKAGE_DIRS_JSON'" \
+      "release-assets: '$EXPECTED_RELEASE_ASSETS_JSON'" \
       'runner: ${{'; do
       grep -qF "$publish_input" <<<"$publish_job" \
         || fail "$release_workflow does not pass '$publish_input' to node-release.yml"
@@ -1221,6 +1495,37 @@ git -C "$fixture_root/case" add .
 git -C "$fixture_root/case" commit -qm "dependency update with fragment"
 python3 "$contract" check-pr --repo-root "$fixture_root/case" --base "$base" --head HEAD
 echo "ok - a dependency change with a new valid fragment is accepted"
+
+new_fixture
+init_fixture_repo
+printf 'base\n' >"$fixture_root/case/README.md"
+git -C "$fixture_root/case" add .
+git -C "$fixture_root/case" commit -qm base
+base="$(git -C "$fixture_root/case" rev-parse HEAD)"
+printf '{"version":"1.0.0"}\n' >"$fixture_root/case/package.json"
+printf '# NEXT fragments\n' >"$fixture_root/case/NEXT/README.md"
+write_fragment NEXT/2026-08-26-issue-1116-adoption.md \
+  2026-08-26 "issue: 1116" "Adopt changelog contract"
+git -C "$fixture_root/case" add .
+git -C "$fixture_root/case" commit -qm "adopt contract with dependency manifest"
+python3 "$contract" check-pr --repo-root "$fixture_root/case" --base "$base" --head HEAD
+echo "ok - NEXT README is not mistaken for an invalid fragment during adoption (#1116)"
+
+base="$(git -C "$fixture_root/case" rev-parse HEAD)"
+git -C "$fixture_root/case" rm -q NEXT/README.md
+git -C "$fixture_root/case" commit -qm "remove changelog documentation"
+python3 "$contract" check-pr --repo-root "$fixture_root/case" --base "$base" --head HEAD
+echo "ok - removing NEXT README does not consume a fragment (#1116)"
+
+printf '# NEXT fragments\n' >"$fixture_root/case/NEXT/README.md"
+git -C "$fixture_root/case" add NEXT/README.md
+git -C "$fixture_root/case" commit -qm "restore changelog documentation"
+base="$(git -C "$fixture_root/case" rev-parse HEAD)"
+mkdir -p "$fixture_root/case/docs"
+git -C "$fixture_root/case" mv NEXT/README.md docs/changelog-fragments.md
+git -C "$fixture_root/case" commit -qm "move changelog documentation"
+python3 "$contract" check-pr --repo-root "$fixture_root/case" --base "$base" --head HEAD
+echo "ok - moving NEXT README does not consume a fragment (#1116)"
 
 new_fixture
 init_fixture_repo

@@ -252,7 +252,7 @@ target it via `runs-on`:
 
 Language kinds live in `images/<kind>.Dockerfile`; the published PowerShell variant uses
 the single root `Dockerfile.pwsh`. Standalone builds default to the verified public base
-digest `ghcr.io/verjson/gha-runner@sha256:d1a77bc538ffd3b07f02c7495e28ca11ce020ad676063ab660b420afb1f4b23b`;
+digest `ghcr.io/verjson/gha-runner@sha256:3af0d4949ae7d1282be0cd7bcad0b8f0e5283dacaec014c536ca0ee2c808e7bb`;
 canonical publication overrides that immutable fallback with the exact same-run base
 digest.
 
