@@ -20,3 +20,7 @@ Persist the reviewed secret-free Kubernetes canary manifest. Use the GitLab 18.3
 advanced PodSpec patch for RuntimeDefault seccomp, explicit unprivileged job
 service account, disabled label overrides and writable nonroot script/log paths
 without relaxing restricted namespace admission.
+
+Document the observed K3s policy convergence window: startup TCP reachability is
+not immediate isolation, and a diagnostic delay is not an authorization control.
+Retain token absence and restricted admission as the startup privilege boundary.

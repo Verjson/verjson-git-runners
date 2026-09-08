@@ -35,6 +35,16 @@ UID, seccomp, image restrictions, resource limits and cleanup. Publication also
 requires the separately approved OIDC broker and plan/evidence acceptance; this
 manifest contains no registry publisher credentials or broker deployment.
 
+The live K3s canary observed a policy convergence window for newly created pods:
+initial TCP connections to the Kubernetes API succeeded, while unauthenticated
+pod/Secret requests returned HTTP 401; a later probe found both API connections
+denied. The observed 20-second interval is diagnostic, not a security guarantee or
+an authorization delay to rely on. Do not claim immediate TCP isolation. The
+startup privilege boundary is the absence of a mounted service-account token,
+unprivileged job service account and restricted Pod Security Admission. Preserve
+those controls and verify actual network behavior for each deployment. Sanitized
+canary evidence is recorded with the live acceptance handoff in issue #201.
+
 GitLab's matching-version and PodSpec configuration references:
 
 - https://docs.gitlab.com/runner/#gitlab-runner-versions
