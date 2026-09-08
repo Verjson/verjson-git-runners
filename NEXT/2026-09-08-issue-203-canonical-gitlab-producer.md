@@ -24,3 +24,7 @@ without relaxing restricted namespace admission.
 Document the observed K3s policy convergence window: startup TCP reachability is
 not immediate isolation, and a diagnostic delay is not an authorization control.
 Retain token absence and restricted admission as the startup privilege boundary.
+
+Fix the live nonroot helper checkout failure by explicitly setting writable HOME
+for both helper and build through a fixed strategic PodSpec patch, preserving
+existing container/environment entries and ephemeral-storage limits.

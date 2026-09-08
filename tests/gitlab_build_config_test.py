@@ -56,14 +56,24 @@ class BuildConfigTest(unittest.TestCase):
         runner = tomllib.loads(config.render(contract()))['runners'][0]
         settings = runner['kubernetes']
         self.assertTrue(runner['feature_flags']['FF_USE_ADVANCED_POD_SPEC_CONFIGURATION'])
-        self.assertEqual(settings['pod_spec'], [{
+        self.assertEqual(settings['pod_spec'][0], {
             'name': 'restricted-seccomp', 'patch_type': 'merge',
             'patch': json.dumps({'securityContext': {'seccompProfile': {'type': 'RuntimeDefault'}}}),
-        }])
+        })
         self.assertEqual(settings['service_account'], 'default')
         self.assertEqual(settings['pod_labels_overwrite_allowed'], '')
         self.assertEqual(settings['scripts_base_dir'], '/tmp')
         self.assertEqual(settings['logs_base_dir'], '/tmp')
+
+    def test_nonroot_home_reaches_helper_and_build_without_replacing_containers(self):
+        runner = tomllib.loads(config.render(contract()))['runners'][0]
+        self.assertEqual(runner['environment'], ['HOME=/tmp'])
+        patch = runner['kubernetes']['pod_spec'][1]
+        self.assertEqual(patch['patch_type'], 'strategic')
+        self.assertEqual(json.loads(patch['patch']), {'containers': [
+            {'name': name, 'env': [{'name': 'HOME', 'value': '/tmp'}]}
+            for name in ('build', 'helper')
+        ]})
 
     def test_jobs_have_nonroot_bounded_resources_without_host_mounts_or_credentials(self):
         parsed = tomllib.loads(config.render(contract()))

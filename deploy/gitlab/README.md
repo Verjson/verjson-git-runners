@@ -51,3 +51,11 @@ GitLab's matching-version and PodSpec configuration references:
 - https://docs.gitlab.com/runner/configuration/advanced-configuration/#override-the-helper-image
 - https://gitlab.com/gitlab-org/gitlab-runner/-/blob/v18.3.1/docs/executors/kubernetes/_index.md
 - https://gitlab.com/gitlab-org/gitlab-runner/-/blob/v18.3.1/common/config.go
+
+GitLab Runner 18.3.1 does not copy runner environment variables into the helper
+container environment. The fixed `nonroot-home` strategic PodSpec patch therefore
+sets `HOME=/tmp` on both named `build` and `helper` containers, preserving their
+other variables and generated container configuration. Runner environment sets
+the same value for generated script exports. This avoids pre-checkout global Git
+configuration writes to `//.gitconfig` under UID 1001. The home stays inside each
+container's bounded ephemeral storage; no host mount or privilege is added.

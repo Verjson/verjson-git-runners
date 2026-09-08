@@ -54,11 +54,16 @@ def render(contract):
     build = json.dumps(contract['build']['destination'])
     helper = json.dumps(contract['helper']['destination'])
     seccomp_patch = json.dumps({'securityContext': {'seccompProfile': {'type': 'RuntimeDefault'}}})
+    home_patch = json.dumps({'containers': [
+        {'name': name, 'env': [{'name': 'HOME', 'value': '/tmp'}]}
+        for name in ('build', 'helper')
+    ]})
     return f'''# Install using manager image: {contract['manager']['destination']}
 # Version/architecture and provenance must be verified from publication receipts.
 concurrent = 1
 [[runners]]
   executor = "kubernetes"
+  environment = ["HOME=/tmp"]
   shell = "bash"
   [runners.feature_flags]
     FF_USE_ADVANCED_POD_SPEC_CONFIGURATION = true
@@ -101,6 +106,10 @@ concurrent = 1
     name = "restricted-seccomp"
     patch_type = "merge"
     patch = {json.dumps(seccomp_patch)}
+  [[runners.kubernetes.pod_spec]]
+    name = "nonroot-home"
+    patch_type = "strategic"
+    patch = {json.dumps(home_patch)}
   [runners.kubernetes.pod_security_context]
       run_as_non_root = true
       run_as_user = 1001
