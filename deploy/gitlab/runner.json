@@ -1,0 +1,445 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "Namespace",
+      "metadata": {
+        "name": "verjson-runners",
+        "labels": {
+          "pod-security.kubernetes.io/enforce": "restricted",
+          "pod-security.kubernetes.io/enforce-version": "v1.33"
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "verjson-gitlab-runner",
+        "namespace": "verjson-runners"
+      },
+      "automountServiceAccountToken": true
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "Role",
+      "metadata": {
+        "name": "verjson-gitlab-runner",
+        "namespace": "verjson-runners"
+      },
+      "rules": [
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "pods"
+          ],
+          "verbs": [
+            "create",
+            "delete",
+            "get",
+            "list",
+            "watch"
+          ]
+        },
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "pods/attach",
+            "pods/exec"
+          ],
+          "verbs": [
+            "create",
+            "delete",
+            "get",
+            "patch"
+          ]
+        },
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "pods/log"
+          ],
+          "verbs": [
+            "get",
+            "list"
+          ]
+        },
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "secrets"
+          ],
+          "verbs": [
+            "create",
+            "delete",
+            "get",
+            "update"
+          ]
+        },
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "serviceaccounts"
+          ],
+          "verbs": [
+            "get"
+          ]
+        },
+        {
+          "apiGroups": [
+            ""
+          ],
+          "resources": [
+            "events"
+          ],
+          "verbs": [
+            "list",
+            "watch"
+          ]
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "RoleBinding",
+      "metadata": {
+        "name": "verjson-gitlab-runner",
+        "namespace": "verjson-runners"
+      },
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "verjson-gitlab-runner",
+          "namespace": "verjson-runners"
+        }
+      ],
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "Role",
+        "name": "verjson-gitlab-runner"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ResourceQuota",
+      "metadata": {
+        "name": "runner-canary",
+        "namespace": "verjson-runners"
+      },
+      "spec": {
+        "hard": {
+          "requests.cpu": "4",
+          "limits.cpu": "8",
+          "requests.memory": "8Gi",
+          "limits.memory": "16Gi",
+          "pods": "8"
+        }
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "runner-isolation",
+        "namespace": "verjson-runners"
+      },
+      "spec": {
+        "podSelector": {},
+        "policyTypes": [
+          "Ingress",
+          "Egress"
+        ],
+        "ingress": [],
+        "egress": [
+          {
+            "to": [
+              {
+                "namespaceSelector": {
+                  "matchLabels": {
+                    "kubernetes.io/metadata.name": "kube-system"
+                  }
+                },
+                "podSelector": {
+                  "matchLabels": {
+                    "k8s-app": "kube-dns"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "UDP",
+                "port": 53
+              },
+              {
+                "protocol": "TCP",
+                "port": 53
+              }
+            ]
+          },
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "0.0.0.0/0",
+                  "except": [
+                    "10.0.0.0/8",
+                    "172.16.0.0/12",
+                    "192.168.0.0/16",
+                    "127.0.0.0/8",
+                    "169.254.0.0/16",
+                    "100.64.0.0/10",
+                    "224.0.0.0/4"
+                  ]
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 443
+              }
+            ]
+          },
+          {
+            "to": [
+              {
+                "namespaceSelector": {
+                  "matchLabels": {
+                    "kubernetes.io/metadata.name": "kube-system"
+                  }
+                },
+                "podSelector": {
+                  "matchLabels": {
+                    "app.kubernetes.io/name": "traefik"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 8443
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "runner-manager-api",
+        "namespace": "verjson-runners"
+      },
+      "spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "verjson-gitlab-runner"
+          }
+        },
+        "policyTypes": [
+          "Ingress",
+          "Egress"
+        ],
+        "ingress": [],
+        "egress": [
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "159.195.78.163/32"
+                }
+              },
+              {
+                "ipBlock": {
+                  "cidr": "10.43.0.1/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 6443
+              },
+              {
+                "protocol": "TCP",
+                "port": 443
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "verjson-gitlab-runner",
+        "namespace": "verjson-runners"
+      },
+      "spec": {
+        "replicas": 1,
+        "selector": {
+          "matchLabels": {
+            "app": "verjson-gitlab-runner"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "verjson-gitlab-runner"
+            }
+          },
+          "spec": {
+            "serviceAccountName": "verjson-gitlab-runner",
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 1001,
+              "runAsGroup": 1001,
+              "fsGroup": 1001,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "imagePullSecrets": [
+              {
+                "name": "nexus-runner-pull"
+              }
+            ],
+            "initContainers": [
+              {
+                "image": "docker.nexus.159-195-78-163.nip.io/verjson/gitlab-runner/manager@sha256:07f924e39aefc1f4ce49e2d7e83b31dedd1a8f07a172b2fe3a9175072bd9d92b",
+                "imagePullPolicy": "Always",
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                },
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  },
+                  "limits": {
+                    "cpu": "1",
+                    "memory": "512Mi"
+                  }
+                },
+                "name": "config",
+                "command": [
+                  "/bin/sh",
+                  "-c",
+                  "cp /source/config.toml /config/config.toml; chmod 600 /config/config.toml"
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "config-source",
+                    "mountPath": "/source",
+                    "readOnly": true
+                  },
+                  {
+                    "name": "config",
+                    "mountPath": "/config"
+                  }
+                ]
+              }
+            ],
+            "containers": [
+              {
+                "image": "docker.nexus.159-195-78-163.nip.io/verjson/gitlab-runner/manager@sha256:07f924e39aefc1f4ce49e2d7e83b31dedd1a8f07a172b2fe3a9175072bd9d92b",
+                "imagePullPolicy": "Always",
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                },
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  },
+                  "limits": {
+                    "cpu": "1",
+                    "memory": "512Mi"
+                  }
+                },
+                "name": "runner",
+                "command": [
+                  "/usr/bin/gitlab-runner",
+                  "run",
+                  "--config",
+                  "/config/config.toml",
+                  "--working-directory",
+                  "/work"
+                ],
+                "env": [
+                  {
+                    "name": "HOME",
+                    "value": "/work"
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "config",
+                    "mountPath": "/config"
+                  },
+                  {
+                    "name": "work",
+                    "mountPath": "/work"
+                  },
+                  {
+                    "name": "tmp",
+                    "mountPath": "/tmp"
+                  }
+                ]
+              }
+            ],
+            "volumes": [
+              {
+                "name": "config-source",
+                "secret": {
+                  "secretName": "verjson-gitlab-runner-config",
+                  "defaultMode": 288
+                }
+              },
+              {
+                "name": "config",
+                "emptyDir": {}
+              },
+              {
+                "name": "work",
+                "emptyDir": {}
+              },
+              {
+                "name": "tmp",
+                "emptyDir": {}
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -15,3 +15,8 @@ manual operation with broker-approved short-lived OIDC credentials.
 Permit one exact Nexus canonical CI bootstrap candidate in the runner image
 allowlist, explicitly recording its reviewed commit and license inventory digest
 without claiming a signed stable release.
+
+Persist the reviewed secret-free Kubernetes canary manifest. Use the GitLab 18.3.1
+advanced PodSpec patch for RuntimeDefault seccomp, explicit unprivileged job
+service account, disabled label overrides and writable nonroot script/log paths
+without relaxing restricted namespace admission.

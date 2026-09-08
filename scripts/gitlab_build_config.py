@@ -53,6 +53,7 @@ def render(contract):
         allowed.append(runtime['destination'])
     build = json.dumps(contract['build']['destination'])
     helper = json.dumps(contract['helper']['destination'])
+    seccomp_patch = json.dumps({'securityContext': {'seccompProfile': {'type': 'RuntimeDefault'}}})
     return f'''# Install using manager image: {contract['manager']['destination']}
 # Version/architecture and provenance must be verified from publication receipts.
 concurrent = 1
@@ -60,6 +61,7 @@ concurrent = 1
   executor = "kubernetes"
   shell = "bash"
   [runners.feature_flags]
+    FF_USE_ADVANCED_POD_SPEC_CONFIGURATION = true
     FF_KUBERNETES_HONOR_ENTRYPOINT = false
     FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY = false
   [runners.kubernetes]
@@ -77,6 +79,10 @@ concurrent = 1
     bearer_token_overwrite_allowed = false
     namespace_overwrite_allowed = ""
     service_account_overwrite_allowed = ""
+    service_account = "default"
+    pod_labels_overwrite_allowed = ""
+    scripts_base_dir = "/tmp"
+    logs_base_dir = "/tmp"
     cpu_request = "500m"
     cpu_limit = "2"
     memory_request = "1Gi"
@@ -91,7 +97,11 @@ concurrent = 1
     helper_ephemeral_storage_limit = "1Gi"
     [runners.kubernetes.node_selector]
       "kubernetes.io/arch" = {json.dumps(contract['architecture'])}
-    [runners.kubernetes.pod_security_context]
+    [[runners.kubernetes.pod_spec]]
+    name = "restricted-seccomp"
+    patch_type = "merge"
+    patch = {json.dumps(seccomp_patch)}
+  [runners.kubernetes.pod_security_context]
       run_as_non_root = true
       run_as_user = 1001
       run_as_group = 1001
