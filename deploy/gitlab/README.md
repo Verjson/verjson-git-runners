@@ -59,3 +59,47 @@ other variables and generated container configuration. Runner environment sets
 the same value for generated script exports. This avoids pre-checkout global Git
 configuration writes to `//.gitconfig` under UID 1001. The home stays inside each
 container's bounded ephemeral storage; no host mount or privilege is added.
+
+## Job-scoped registry authentication
+
+The manager Deployment references `nexus-manager-pull` only for its own
+control-plane image bootstrap. That credential must be scoped to manager image
+reads and must not appear in job configuration, the default service account, or
+project/group variables. The generated job configuration explicitly sets
+`image_pull_secrets=[]` and `use_service_account_image_pull_secrets=false`.
+Keep the exact build/helper/runtime image allowlist and `always` pull policy.
+
+Each canonical CI job requests `VERJSON_REGISTRY_PULL_ID_TOKEN` with audience
+`https://docker.nexus.159-195-78-163.nip.io`. Its `DOCKER_AUTH_CONFIG` variable uses
+`username: verjson-oidc` and `password: $VERJSON_REGISTRY_PULL_ID_TOKEN` under that
+registry host. Variable expansion is mandatory: the canonical YAML specifies
+`expand: true`, corresponding to `raw: false` in GitLab's expanded job variables.
+A literal unexpanded token reference cannot authenticate. Do not install static
+fallback credentials in the runner environment or higher-priority project/group
+variables; inspect variable names and expansion flags without displaying values.
+
+GitLab Runner 18.3.1 creates the job-scoped Docker pull Secret before creating its
+pod, and the same Secret covers build and helper pulls. The synthetic exact-binary
+[proof](../../docs/gitlab/evidence/runner-18.3.1-job-pull-auth.json) records the
+measured request order and immutable runner image identity. It does not establish
+live GitLab, gateway or Nexus acceptance. Namespace-scoped manager permissions to
+create/delete job Secrets remain necessary; job service accounts receive no API
+token or corresponding permissions.
+
+The initial gateway allowlist admits only approved projects and protected main or
+explicitly configured protected canary references. All canonical jobs have a
+five-minute timeout and pull tokens have at most a 300-second lifetime. Other
+branches cannot pull these private job images during this initial rollout; broader
+merge-request execution requires a separately approved reference policy. Publication
+uses its own audience and authorization; pull access does not authorize writes.
+
+Live acceptance must use a newly built canonical CI candidate digest that is not
+already on the node, retain `always`, and prove zero static job fallback. Inspect
+the admitted pod's `imagePullSecrets` and only the masked Secret structure, then
+verify short-lived expiry and approved-reference denial. A warm node cache alone
+cannot prove authenticated pulls. Do not purge shared caches to manufacture this
+proof. Keep manager bootstrap receipts separate from per-job authentication.
+
+GitHub currently retains history and issue/PR tracking, including existing PR
+#196. Read-only enforcement and automatic mirroring are not configured; neither
+is implied by making GitLab primary.
