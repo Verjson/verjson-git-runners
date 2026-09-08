@@ -1,6 +1,7 @@
 ---
 date: 2026-09-08
 issue: 201
+impact: major
 title: Prepare the renamed GitLab primary runner producer
 ---
 

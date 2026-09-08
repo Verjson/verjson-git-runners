@@ -16,7 +16,8 @@ Use `https://git.159-195-78-163.nip.io/Verjson/verjson-git-runners` as the prima
 source repository and `Verjson/verjson-git-runners` as the GitHub identity.
 Keep the `gha` binary, `GHA_DIR`/`GHA_REF` overrides, existing checkout directory,
 and GitHub runner entrypoint compatible. The Go module follows the primary
-source identity. New installer clones use GitLab; existing clones retain their
+source identity; that import-path change is a major release impact even though
+the launcher remains compatible. New installer clones use GitLab; existing clones retain their
 configured origin until their owner explicitly migrates them.
 
 Consume an immutable shared `verjson-ci` GitLab pipeline, with explicit release
