@@ -25,6 +25,7 @@ for path in Path('.verjson-ci/producer-evidence').iterdir():
         raise SystemExit('producer evidence must contain only regular files')
 PY
 checks=(
+  tests/ai_review_caller_test.py
   tests/installer_migration_test.py
   tests/producer_plan_test.py
   tests/gitlab_build_config_test.py

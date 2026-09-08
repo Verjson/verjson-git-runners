@@ -28,3 +28,8 @@ Retain token absence and restricted admission as the startup privilege boundary.
 Fix the live nonroot helper checkout failure by explicitly setting writable HOME
 for both helper and build through a fixed strategic PodSpec patch, preserving
 existing container/environment entries and ephemeral-storage limits.
+
+Remove the redundant local authorization arm already provided by organization
+rules and generate the separate lifecycle and AI review callers at current
+contract 55576f. This adopts the existing fix for cancellation clearing preflight
+head outputs, which had incorrectly failed exact-head authorization on this PR.

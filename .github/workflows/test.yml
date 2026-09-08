@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Validate current AI review callers
+        run: python3 tests/ai_review_caller_test.py
       - name: Validate signed producer plan binding
         run: python3 tests/producer_plan_test.py
       - name: Validate GitLab installer migration
