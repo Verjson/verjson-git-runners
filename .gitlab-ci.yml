@@ -1,0 +1,8 @@
+include:
+  - project: Verjson/verjson-ci
+    ref: 68d9d9c7c93a6e8be2508fc8548fa30728a1bab8
+    file: /templates/producer.yml
+    inputs:
+      test-image: docker.nexus.159-195-78-163.nip.io/verjson/git-runners/go@sha256:140fe6ddf820c71f113ead4038e684b2e72b1f5aab7b7184354173f9231a9703
+      runtime-image: docker.nexus.159-195-78-163.nip.io/verjson/ci/candidates@sha256:976f31303a2cac92671c899b460b7ca872aa972a00165b142f4b2cd19e8f5007
+      test-command: scripts/verify-gitlab.sh

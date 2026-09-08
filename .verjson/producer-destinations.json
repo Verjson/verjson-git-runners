@@ -1,0 +1,8 @@
+{
+  "base": "docker.nexus.159-195-78-163.nip.io/verjson/git-runners/base:0.2.1",
+  "node": "docker.nexus.159-195-78-163.nip.io/verjson/git-runners/node:0.2.1",
+  "python": "docker.nexus.159-195-78-163.nip.io/verjson/git-runners/python:0.2.1",
+  "go": "docker.nexus.159-195-78-163.nip.io/verjson/git-runners/go:0.2.1",
+  "rust": "docker.nexus.159-195-78-163.nip.io/verjson/git-runners/rust:0.2.1",
+  "pwsh": "docker.nexus.159-195-78-163.nip.io/verjson/git-runners/pwsh:0.2.1"
+}
