@@ -1,0 +1,51 @@
+{
+  "runnerVersion": "18.3.1",
+  "runnerRevision": "5a021a1c14edadc683ee4b1f0a00182ec3ee636a",
+  "imageId": "sha256:07f924e39aefc1f4ce49e2d7e83b31dedd1a8f07a172b2fe3a9175072bd9d92b",
+  "syntheticOnly": true,
+  "noRealRegistryOrGitLabCalls": true,
+  "results": [
+    {
+      "case": "expanded",
+      "expandedToSyntheticToken": true,
+      "podReferencesJobSecret": true,
+      "secretType": "kubernetes.io/dockercfg",
+      "containerImages": {
+        "build": "registry.example/build:proof",
+        "helper": "registry.example/helper:proof",
+        "service": "registry.example/service:proof"
+      },
+      "createdSecretBeforePod": true,
+      "secretRequestIndex": 2,
+      "podRequestIndex": 4
+    },
+    {
+      "case": "raw-denial-control",
+      "expandedToSyntheticToken": false,
+      "podReferencesJobSecret": true,
+      "secretType": "kubernetes.io/dockercfg",
+      "containerImages": {
+        "build": "registry.example/build:proof",
+        "helper": "registry.example/helper:proof",
+        "service": "registry.example/service:proof"
+      },
+      "createdSecretBeforePod": true,
+      "secretRequestIndex": 2,
+      "podRequestIndex": 4
+    },
+    {
+      "case": "service-account-control",
+      "expandedToSyntheticToken": true,
+      "podReferencesJobSecret": false,
+      "secretType": "kubernetes.io/dockercfg",
+      "containerImages": {
+        "build": "registry.example/build:proof",
+        "helper": "registry.example/helper:proof",
+        "service": "registry.example/service:proof"
+      },
+      "createdSecretBeforePod": true,
+      "secretRequestIndex": 2,
+      "podRequestIndex": 4
+    }
+  ]
+}

@@ -317,7 +317,7 @@
             },
             "imagePullSecrets": [
               {
-                "name": "nexus-runner-pull"
+                "name": "nexus-manager-pull"
               }
             ],
             "initContainers": [

@@ -3,7 +3,16 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 contract_cache="$(mktemp -d)"
-trap 'rm -rf "$contract_cache"' EXIT
+export GOPATH="$contract_cache/go"
+cleanup() {
+  local status=$?
+  if command -v go >/dev/null 2>&1; then
+    go clean -modcache || status=1
+  fi
+  rm -rf "$contract_cache" || status=1
+  exit "$status"
+}
+trap cleanup EXIT
 python3 - <<'PY'
 import os
 import re

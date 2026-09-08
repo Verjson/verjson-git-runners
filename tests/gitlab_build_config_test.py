@@ -75,6 +75,24 @@ class BuildConfigTest(unittest.TestCase):
             for name in ('build', 'helper')
         ]})
 
+    def test_job_pull_auth_has_no_static_or_service_account_fallback(self):
+        runner = tomllib.loads(config.render(contract()))['runners'][0]
+        settings = runner['kubernetes']
+        self.assertEqual(settings['image_pull_secrets'], [])
+        self.assertFalse(settings['use_service_account_image_pull_secrets'])
+        self.assertEqual(settings['pull_policy'], ['always'])
+        self.assertEqual(settings['allowed_pull_policies'], ['always'])
+        self.assertFalse(any(value.startswith('DOCKER_AUTH_CONFIG=') for value in runner['environment']))
+
+    def test_bootstrap_pull_secret_is_scoped_to_manager_deployment_only(self):
+        resources = json.loads((Path(__file__).resolve().parents[1] / 'deploy/gitlab/runner.json').read_text())['items']
+        deployment = next(item for item in resources if item['kind'] == 'Deployment')
+        self.assertEqual(deployment['spec']['template']['spec']['imagePullSecrets'], [{'name': 'nexus-manager-pull'}])
+        for item in resources:
+            if item['kind'] == 'ServiceAccount':
+                self.assertNotIn('imagePullSecrets', item)
+        self.assertFalse(any(item['kind'] == 'Secret' for item in resources))
+
     def test_jobs_have_nonroot_bounded_resources_without_host_mounts_or_credentials(self):
         parsed = tomllib.loads(config.render(contract()))
         self.assertEqual(parsed['concurrent'], 1)
