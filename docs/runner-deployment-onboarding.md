@@ -39,14 +39,23 @@ Record the actual terminal-green AI source check App ID and exact check name aft
 verifying that check's role; an unrelated existing App is not a substitute.
 The null config values are intentional missing inputs, never usable defaults.
 
-Each private key belongs only in its matching caller-owned protected environment:
-`runner-deploy-code-review-publisher`, `runner-deploy-security-review-publisher`,
-and `runner-deploy-ai-review-publisher`. Follow the pinned canonical producer for
-the exact secret names and permissions. Verify each environment has protected
-branch admission and exactly its native branch-policy rule, with no reviewers,
-timers or custom rules. The same admission rule applies to `production`, which
-remains the contract's credential boundary even for this Development project.
-Its existing reviewer rule is an unresolved policy mismatch.
+### Publisher provisioning
+
+These three independent private GitHub Apps are required by canonical ADR 0144. Each requests repository Checks write only (GitHub also supplies Metadata read), has no webhook, and must be installed on **only `Verjson/verjson-git-runners`** for this proof. Do not substitute existing broad organization Apps.
+
+| Role | Prefilled GitHub registration | Protected environment | Client ID variable | Private-key secret |
+| --- | --- | --- | --- | --- |
+| code | [Register runner-deploy-code-review](https://github.com/organizations/Verjson/settings/apps/new?name=runner-deploy-code-review&description=Publish+canonical+code+review+receipts+for+runner+deployment&url=https%3A%2F%2Fgithub.com%2FVerjson%2Fverjson-git-runners&public=false&webhook_active=false&checks=write) | `runner-deploy-code-review-publisher` | `RUNNER_DEPLOY_CODE_REVIEW_APP_CLIENT_ID` | `RUNNER_DEPLOY_CODE_REVIEW_APP_PRIVATE_KEY` |
+| security | [Register runner-deploy-security-review](https://github.com/organizations/Verjson/settings/apps/new?name=runner-deploy-security-review&description=Publish+canonical+security+review+receipts+for+runner+deployment&url=https%3A%2F%2Fgithub.com%2FVerjson%2Fverjson-git-runners&public=false&webhook_active=false&checks=write) | `runner-deploy-security-review-publisher` | `RUNNER_DEPLOY_SECURITY_REVIEW_APP_CLIENT_ID` | `RUNNER_DEPLOY_SECURITY_REVIEW_APP_PRIVATE_KEY` |
+| ai | [Register runner-deploy-ai-review](https://github.com/organizations/Verjson/settings/apps/new?name=runner-deploy-ai-review&description=Publish+canonical+ai+review+receipts+for+runner+deployment&url=https%3A%2F%2Fgithub.com%2FVerjson%2Fverjson-git-runners&public=false&webhook_active=false&checks=write) | `runner-deploy-ai-review-publisher` | `RUNNER_DEPLOY_AI_REVIEW_APP_CLIENT_ID` | `RUNNER_DEPLOY_AI_REVIEW_APP_PRIVATE_KEY` |
+
+For each App, record the distinct numeric App ID and installation ID for reviewed `container-deployment.json`. Generate a private key in the GitHub App settings and supply it directly to its matching environment secret using `gh secret set <SECRET_NAME> --repo Verjson/verjson-git-runners --env <ENVIRONMENT> < /secure/path/to/key.pem`. Never paste keys into chat, issues, or PRs. Do not use the registration App key for a review publisher.
+
+The three publisher environments must allow protected branches only and have no wait timer, reviewer, or custom protection rules; the canonical workflow performs its own identity and provenance checks before credential admission. `production` keeps its existing review rule until the reviewed deployment configuration, three App publishers, independent review receipts, and host plan are ready for activation. Creating these Apps does not itself authorize a deployment.
+
+The AI publisher's source authority is separately pinned to the live `ai-review-authorization` App (numeric App ID 4528902); its exact source check name must be verified from an actual trusted green check before activation. Code and security reviews require distinct eligible principals, independent of each other and the dispatcher, as specified by ADR 0144.
+
+Registration uses GitHub's documented [prefilled registration parameters](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-using-url-parameters). The registering operator must review the prefilled permissions and selected-repository installation before submitting.
 
 Implement the consumer-owned scripts declared by `evidenceCommand` and
 `probeCommand` only after their evidence sources are established. They are absent
@@ -54,6 +63,11 @@ deliberately; this draft does not create fake successful evidence. Required work
 
 - Verify release manifest provenance and immutable image digests, exact live fleet
   membership, group/labels/tools, deployed baseline and available capacity.
+  The upstream repair plans `manifestBytes` for exact UTF-8 release-asset text
+  alongside the parsed `manifest`, and per-host `releaseManifestBytes` for baseline
+  reconciliation. Once that repair lands and the adopter is regenerated, adapters
+  must preserve the original bytes, bind their digest to the attested identity,
+  and verify the parsed object matches. Do not reserialize JSON as asset evidence.
 - Retrieve retained plans and complete receipt chains using artifact identity and
   digest; bind the exact workflow attempt, head/tree, manifest and transaction.
 - Produce bounded live post-update evidence and reconcile uncertain mutation
