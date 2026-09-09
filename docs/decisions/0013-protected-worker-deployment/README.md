@@ -15,7 +15,7 @@ The selected DigitalOcean host is Droplet 596126740 in the Development project
 ## Decision
 
 Adopt all ten generated deployment and review-publisher artifacts from
-`Verjson/.github@55576f7cf8659d49aa28b3fca8039b6e05d47231`. Preserve the canonical
+`Verjson/.github@e044618e2723b6f23c117643b3f2b438bdcee6e6`. Preserve the canonical
 protected-default-branch credential boundary, separate provider and runner-control
 authority, three independent review publishers, immutable release provenance,
 canary-first sequential updates, capacity floor and append-only rollback receipts.
@@ -26,6 +26,9 @@ adapters, fleet capacity and registration identity satisfy the contract.
 `container-deployment.json` intentionally contains null trust roots and only the
 authorized host; its canonical contract test must fail until onboarding completes.
 Do not replace nulls with fixture identities or introduce success-only adapters.
+The adapter credential, dispatch, request and host-evidence transport remains
+blocked by [organization #1281](https://github.com/Verjson/.github/issues/1281);
+private publisher identities alone cannot make the adopter runnable.
 The intended canary group is the existing restricted `verjson-runner-canary` group;
 the runner's current membership in `DigitalOcean` is an unresolved admission gap.
 
@@ -40,7 +43,7 @@ the GitLab runner lifecycle requires them. GitLab registration, scheduling,
 credential admission and evidence remain provider-specific. A separate adopter
 must prove those boundaries before activation; GitHub App checks and GitHub runner
 groups cannot authorize GitLab workers. This follows ADR 0012 and organization
-[ADR 0162](https://github.com/Verjson/.github/blob/55576f7cf8659d49aa28b3fca8039b6e05d47231/docs/decisions/0162-unify-portable-ci-engine-and-forge-adapters/README.md),
+[ADR 0162](https://github.com/Verjson/.github/blob/e044618e2723b6f23c117643b3f2b438bdcee6e6/docs/decisions/0162-unify-portable-ci-engine-and-forge-adapters/README.md),
 which supersedes ADR 0161 with a common portable CI engine and forge adapters.
 It does not assume a universal fleet controller, introduce a speculative GitLab
 deployment implementation or change the producer cutover.

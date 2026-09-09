@@ -63,10 +63,10 @@ deliberately; this draft does not create fake successful evidence. Required work
 
 - Verify release manifest provenance and immutable image digests, exact live fleet
   membership, group/labels/tools, deployed baseline and available capacity.
-  The upstream repair plans `manifestBytes` for exact UTF-8 release-asset text
-  alongside the parsed `manifest`, and per-host `releaseManifestBytes` for baseline
-  reconciliation. Once that repair lands and the adopter is regenerated, adapters
-  must preserve the original bytes, bind their digest to the attested identity,
+  The installed controller supports `manifestBytes` for exact UTF-8 release-asset
+  text alongside the parsed `manifest`, and per-host `releaseManifestBytes` for
+  baseline reconciliation. Adapters must preserve the original bytes, bind their
+  digest to the attested identity,
   and verify the parsed object matches. Do not reserialize JSON as asset evidence.
 - Retrieve retained plans and complete receipt chains using artifact identity and
   digest; bind the exact workflow attempt, head/tree, manifest and transaction.
@@ -75,6 +75,31 @@ deliberately; this draft does not create fake successful evidence. Required work
 - Route a bounded probe to the exact named admitted runner, prove execution on that
   runner and return the verified probe result. Keep both privileged credentials
   outside probe, receipt and artifact processes.
+
+### Canonical adapter transport blocker
+
+[Organization #1281](https://github.com/Verjson/.github/issues/1281) blocks #197.
+The installed contract cannot yet supply these capabilities to real adapters:
+
+- `_child_environment` removes `GH_TOKEN`, `GITHUB_TOKEN` and workflow context
+  from evidence and probe subprocesses. Authenticated asset, artifact and runner
+  reads cannot rely on the parent job's token being available.
+- The only canary admitted by group 11 is a dispatched workflow in
+  `Verjson/.github`, not a reusable workflow. The consumer's repository-scoped
+  `actions: read` job token cannot dispatch it, even if passed to the adapter.
+- The canary requires runner name, ID, unique routing label, transaction nonce,
+  release manifest, variant and image digest. The probe interface supplies only
+  `--runner` and `--timeout-seconds`; a canonical request and receipt transport
+  must bind the remaining identity before an exact-runner proof is possible.
+- Live baseline, drain, lock, tools and runtime health evidence needs a provisioned
+  read-only host transport. The workflow supplies no SSH trust/key or authenticated
+  evidence endpoint. `SSH_AUTH_SOCK` being allowed in a child is not provisioning.
+
+The initial evidence call uses `--fleet` for the reviewed selector; capacity and
+post-update calls use the lane. The eventual adapter must resolve this explicitly
+and reject ambiguous configuration. Do not bridge these gaps with cached CLI
+credentials, provider mutation tokens, runner-control tokens or fabricated evidence.
+Publisher identities alone do not unblock adapter execution.
 
 ## Release identity and proof
 
@@ -85,18 +110,21 @@ Its historical source is `Verjson/verjson-github-runner` at
 
 The raw downloaded manifest digest is
 `sha256:4f5bb96e1fe07f7b56cfe124206ed85c4e59b9715b3b4e18b3054d890dd1ad32`.
-The controller's sorted compact JSON digest (UTF-8, no trailing newline) is
+The sorted compact JSON digest (UTF-8, no trailing newline) is
 `sha256:cb3d413b928468fee715a7545567854455ab1b5fde88f701d0454ede2dae7532`.
 These differ. The authenticated GitHub attestation DSSE subject binds the raw
-asset digest. The current deployment controller expects the compact canonical
-digest instead, so admission requires an upstream contract resolution tracked
-under organization #629 and then regeneration at the reviewed repaired pin.
-An image match alone does not establish deployable release provenance. Do not
-rewrite a published asset to make a digest match.
+asset digest. The installed repair from organization #1277/#1279 admits those
+original bytes through `manifestBytes` and verifies they parse to the supplied
+object. It does not rewrite the asset or replace its attested digest.
+The owner cryptographically verified both v0.2.1 and v0.2.0 manifests using
+`gh attestation verify` with the historical repository, reusable signer workflow,
+exact signer digest, source ref and exact source digest. This verifies release
+provenance, not canary execution or rollback; #1281 and the onboarding prerequisites
+above still prevent activation.
 
 After the gaps above are resolved, run `bash scripts/container-deployment-contract.test.sh`
 and the pinned controller/preflight/review-producer behavioral suites. Then follow
-the [canonical runbook at the installed pin](https://github.com/Verjson/.github/blob/55576f7cf8659d49aa28b3fca8039b6e05d47231/docs/container-deployment-runbook.md):
+the [canonical runbook at the installed pin](https://github.com/Verjson/.github/blob/e044618e2723b6f23c117643b3f2b438bdcee6e6/docs/container-deployment-runbook.md):
 produce a mutation-free exact-host dry-run plan, successful canary observation,
 failed-canary stop before a second update, retry/idempotency evidence and a new
 independently admitted rollback to the exact previous manifest/image digest.
