@@ -34,6 +34,8 @@ jobs:
         run: bash scripts/container-candidate-contract.test.sh
       - name: Canonical container release contract holds
         run: bash scripts/container-release-contract.test.sh
+      - name: Canonical container deployment adopter is ready
+        run: bash scripts/container-deployment-contract.test.sh
       - name: Validate pull request image build check contract
         run: bash tests/image_build_check_workflow_test.sh
       - name: Validate read-only cache inventory measurement
