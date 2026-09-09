@@ -1,6 +1,6 @@
 ---
 date: 2026-09-09
-issue: 20260909T161447Z
+id: 20260909T161447Z
 impact: patch
 title: Document exact deployment publisher provisioning
 ---
