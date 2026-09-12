@@ -5,7 +5,7 @@ This is an incomplete adopter: do not merge or dispatch it until the canonical
 contract test passes with real reviewed inputs. No canary, failure-stop, retry or
 rollback receipt has been produced by this change. The generated deployment
 artifacts now pin the canonical GitHub transport contract at
-`91c12ff5931ab7eb7c9a76276c2cadae5d780174`.
+`3af4580b7d345602891fea91c2684b3bb7892c36`.
 
 ## Reviewed target and observed gaps
 
@@ -84,7 +84,7 @@ deliberately; this draft does not create fake successful evidence. Required work
 
 [Organization #1281](https://github.com/Verjson/.github/issues/1281) still blocks
 #197. The adopter now includes the generated parent-owned GitHub broker from
-`Verjson/.github@91c12ff5931ab7eb7c9a76276c2cadae5d780174`. It preserves release
+`Verjson/.github@3af4580b7d345602891fea91c2684b3bb7892c36`. It preserves release
 manifest bytes, binds the full probe request and nonce, and validates the exact
 canary run, job and receipt through dedicated short-lived App credentials. The
 broker is a capability boundary; it is not an active adapter and no reusable
@@ -127,7 +127,7 @@ above still prevent activation.
 
 After the gaps above are resolved, run `bash scripts/container-deployment-contract.test.sh`
 and the pinned controller/preflight/review-producer behavioral suites. Then follow
-the [canonical runbook at the installed pin](https://github.com/Verjson/.github/blob/91c12ff5931ab7eb7c9a76276c2cadae5d780174/docs/container-deployment-runbook.md):
+the [canonical runbook at the installed pin](https://github.com/Verjson/.github/blob/3af4580b7d345602891fea91c2684b3bb7892c36/docs/container-deployment-runbook.md):
 produce a mutation-free exact-host dry-run plan, successful canary observation,
 failed-canary stop before a second update, retry/idempotency evidence and a new
 independently admitted rollback to the exact previous manifest/image digest.

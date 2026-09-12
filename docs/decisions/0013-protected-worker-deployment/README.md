@@ -17,7 +17,7 @@ registered or admitted runner.
 ## Decision
 
 Adopt the generated deployment, transport, and review-publisher artifacts from
-`Verjson/.github@91c12ff5931ab7eb7c9a76276c2cadae5d780174`. Preserve the canonical
+`Verjson/.github@3af4580b7d345602891fea91c2684b3bb7892c36`. Preserve the canonical
 protected-default-branch credential boundary, separate provider and runner-control
 authority, three independent review publishers, immutable release provenance,
 canary-first sequential updates, capacity floor and append-only rollback receipts.
