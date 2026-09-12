@@ -45,7 +45,9 @@ def _trusted_directory(parent_fd: int, name: str, display: str, owner: int) -> i
 def _open_bubblewrap(bin_fd: int, owner: int) -> tuple[int, os.stat_result]:
     try:
         descriptor = os.open(
-            "bwrap", os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=bin_fd
+            "bwrap",
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK,
+            dir_fd=bin_fd,
         )
     except OSError as error:
         raise ContractError("/usr/bin/bwrap is not an exact regular file") from error
@@ -113,7 +115,7 @@ def _open_package_archive(etc_fd: int, owner: int) -> tuple[int, os.stat_result]
     try:
         descriptor = os.open(
             BUBBLEWRAP_PACKAGE_ARCHIVE_NAME,
-            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK,
             dir_fd=etc_fd,
         )
     except OSError as error:
@@ -223,7 +225,7 @@ def verify_bubblewrap(
         try:
             provenance_fd = os.open(
                 BUBBLEWRAP_PROVENANCE_NAME,
-                os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK,
                 dir_fd=etc_fd,
             )
         except OSError as error:
@@ -280,7 +282,7 @@ def verify_bubblewrap(
         try:
             provenance_after_fd = os.open(
                 BUBBLEWRAP_PROVENANCE_NAME,
-                os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+                os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK,
                 dir_fd=etc_after_fd,
             )
         except OSError as error:
@@ -291,6 +293,22 @@ def verify_bubblewrap(
         descriptors.append(bin_after_fd)
         after_fd, after = _open_bubblewrap(bin_after_fd, owner)
         descriptors.append(after_fd)
+        package_archive_after_fd, package_archive_after = _open_package_archive(
+            etc_after_fd, owner
+        )
+        descriptors.append(package_archive_after_fd)
+        if (
+            identity(before) != identity(after)
+            or identity(package_archive_before) != identity(package_archive_after)
+        ):
+            raise ContractError("/usr/bin/bwrap changed during verification")
+        _verify_bubblewrap_package(
+            provenance_after_fd,
+            provenance_after,
+            package_archive_after_fd,
+            after_fd,
+            after,
+        )
         if (
             identity(usr_before) != identity(os.fstat(usr_fd))
             or identity(usr_before) != identity(os.fstat(usr_after_fd))
@@ -299,6 +317,7 @@ def verify_bubblewrap(
             or identity(provenance_before) != identity(os.fstat(provenance_fd))
             or identity(provenance_before) != identity(provenance_after)
             or identity(package_archive_before) != identity(os.fstat(package_archive_fd))
+            or identity(package_archive_before) != identity(package_archive_after)
             or identity(bin_before) != identity(os.fstat(bin_fd))
             or identity(bin_before) != identity(os.fstat(bin_after_fd))
             or identity(before) != identity(os.fstat(bubblewrap_fd))

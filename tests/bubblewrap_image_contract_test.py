@@ -25,6 +25,16 @@ PROVENANCE_COPY_ARGUMENTS = '--chmod=0444 images/bubblewrap-provenance.json /etc
 PACKAGE_ARCHIVE_PATH = '/etc/verjson-bubblewrap.deb'
 ROOT_USER_ARGUMENTS = "root"
 BUBBLEWRAP_PACKAGE_VERSION = "0.11.1-1ubuntu0.1"
+SHIPPED_BUBBLEWRAP_CHECKSUMS = {
+    "amd64": {
+        "package_sha256": "b353088d1003adb3f760deeccfb84c47928a36c8dc102bf680efc94eb19f4408",
+        "binary_sha256": "0abea81db798ebf6b4742ac0664802d97521547a353c2a0dbdc21d76cbbfd2c0",
+    },
+    "arm64": {
+        "package_sha256": "7798d8926cf4c51cfc56187703499d75f7ab66d199a700d1093b45916d7120c0",
+        "binary_sha256": "29cb90e51494b3765b7b36587b0635863898d1e85025e082674121bcdf34a08b",
+    },
+}
 HEREDOC = re.compile(r"<<(-?)(?:'([^']+)'|\"([^\"]+)\"|([A-Za-z0-9_.-]+))")
 
 
@@ -327,6 +337,42 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         with self.assertRaisesRegex(CONTRACT.ContractError, "package archive failed"):
             self.verify()
 
+    def test_rejects_package_archive_replaced_during_verification(self) -> None:
+        archive = self.root / "etc" / "verjson-bubblewrap.deb"
+        replacement = self.root / "etc" / "replacement.deb"
+        replacement.write_bytes(b"replacement package")
+        replacement.chmod(0o444)
+
+        def replace() -> None:
+            replacement.replace(archive)
+
+        with self.assertRaisesRegex(CONTRACT.ContractError, "changed during verification"):
+            self.verify(before_execute=replace)
+
+    def test_rejects_fifo_protected_files_without_blocking(self) -> None:
+        protected_paths = (
+            self.bin / "bwrap",
+            self.root / "etc" / CONTRACT.BUBBLEWRAP_PROVENANCE_NAME,
+            self.root / "etc" / "verjson-bubblewrap.deb",
+        )
+        for path in protected_paths:
+            with self.subTest(path=path.name):
+                path.unlink()
+                os.mkfifo(path, 0o444)
+                try:
+                    with self.assertRaises(CONTRACT.ContractError):
+                        self.verify()
+                finally:
+                    path.unlink()
+                    if path.name == "bwrap":
+                        self.write_bwrap("0.9.0")
+                    elif path.name == CONTRACT.BUBBLEWRAP_PROVENANCE_NAME:
+                        self.write_provenance()
+                    else:
+                        path.write_bytes(b"package archive")
+                        path.chmod(0o444)
+                        self.write_provenance()
+
     def test_rejects_writable_package_archive(self) -> None:
         archive = self.root / "etc" / "verjson-bubblewrap.deb"
         archive.chmod(0o644)
@@ -415,6 +461,21 @@ class PublishedImageContractTest(unittest.TestCase):
         self.assertEqual(provenance["version"], BUBBLEWRAP_PACKAGE_VERSION)
         self.assertEqual(provenance["binary_path"], "/usr/bin/bwrap")
         self.assertEqual(set(provenance["architectures"]), {"amd64", "arm64"})
+
+    def test_shipped_provenance_checksums_are_pinned(self) -> None:
+        provenance = json.loads(
+            (ROOT / "images/bubblewrap-provenance.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            {
+                architecture: {
+                    key: provenance["architectures"][architecture][key]
+                    for key in ("package_sha256", "binary_sha256")
+                }
+                for architecture in SHIPPED_BUBBLEWRAP_CHECKSUMS
+            },
+            SHIPPED_BUBBLEWRAP_CHECKSUMS,
+        )
 
     def test_every_published_variant_and_architecture_runs_final_contract(self) -> None:
         config = json.loads((ROOT / "container-candidate.json").read_text(encoding="utf-8"))
