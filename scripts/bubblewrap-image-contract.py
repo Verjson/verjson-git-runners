@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 from __future__ import annotations
 
 import hashlib
@@ -15,6 +15,7 @@ BUBBLEWRAP_PACKAGE = "bubblewrap"
 BUBBLEWRAP_PACKAGE_VERSION = "0.11.1-1ubuntu0.1"
 BUBBLEWRAP_PROVENANCE_PATH = "/etc/verjson-bubblewrap-provenance.json"
 BUBBLEWRAP_PROVENANCE_NAME = Path(BUBBLEWRAP_PROVENANCE_PATH).name
+BUBBLEWRAP_PACKAGE_ARCHIVE_NAME = "verjson-bubblewrap.deb"
 
 
 class ContractError(RuntimeError):
@@ -96,9 +97,43 @@ def _read_provenance(provenance_fd: int, metadata: os.stat_result) -> dict[str, 
     return provenance
 
 
+def _hash_fd(descriptor: int, display: str) -> str:
+    digest = hashlib.sha256()
+    offset = 0
+    try:
+        while chunk := os.pread(descriptor, 1024 * 1024, offset):
+            digest.update(chunk)
+            offset += len(chunk)
+    except OSError as error:
+        raise ContractError(f"{display} could not be hashed") from error
+    return digest.hexdigest()
+
+
+def _open_package_archive(etc_fd: int, owner: int) -> tuple[int, os.stat_result]:
+    try:
+        descriptor = os.open(
+            BUBBLEWRAP_PACKAGE_ARCHIVE_NAME,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC,
+            dir_fd=etc_fd,
+        )
+    except OSError as error:
+        raise ContractError("Bubblewrap package archive is missing") from error
+    metadata = os.fstat(descriptor)
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != owner
+        or metadata.st_gid != owner
+        or stat.S_IMODE(metadata.st_mode) != 0o444
+    ):
+        os.close(descriptor)
+        raise ContractError("Bubblewrap package archive is not immutable")
+    return descriptor, metadata
+
+
 def _verify_bubblewrap_package(
     provenance_fd: int,
     provenance_metadata: os.stat_result,
+    package_archive_fd: int,
     bubblewrap_fd: int,
     bubblewrap_metadata: os.stat_result,
 ) -> None:
@@ -136,15 +171,9 @@ def _verify_bubblewrap_package(
     ):
         raise ContractError("Bubblewrap package provenance is invalid")
 
-    digest = hashlib.sha256()
-    offset = 0
-    try:
-        while chunk := os.pread(bubblewrap_fd, 1024 * 1024, offset):
-            digest.update(chunk)
-            offset += len(chunk)
-    except OSError as error:
-        raise ContractError("/usr/bin/bwrap could not be hashed") from error
-    if digest.hexdigest() != binary_sha256:
+    if _hash_fd(package_archive_fd, "Bubblewrap package archive") != package_sha256:
+        raise ContractError("Bubblewrap package archive failed immutable provenance checksum")
+    if _hash_fd(bubblewrap_fd, "/usr/bin/bwrap") != binary_sha256:
         raise ContractError(
             "/usr/bin/bwrap failed the Bubblewrap package checksum (immutable provenance)"
         )
@@ -208,6 +237,8 @@ def verify_bubblewrap(
             or stat.S_IMODE(provenance_before.st_mode) != 0o444
         ):
             raise ContractError("Bubblewrap package provenance is not immutable")
+        package_archive_fd, package_archive_before = _open_package_archive(etc_fd, owner)
+        descriptors.append(package_archive_fd)
         bin_fd = _trusted_directory(usr_fd, "bin", "/usr/bin", owner)
         descriptors.append(bin_fd)
         bin_before = os.fstat(bin_fd)
@@ -215,7 +246,11 @@ def verify_bubblewrap(
         descriptors.append(bubblewrap_fd)
 
         _verify_bubblewrap_package(
-            provenance_fd, provenance_before, bubblewrap_fd, before
+            provenance_fd,
+            provenance_before,
+            package_archive_fd,
+            bubblewrap_fd,
+            before,
         )
 
         if before_execute is not None:
@@ -263,6 +298,7 @@ def verify_bubblewrap(
             or identity(etc_before) != identity(os.fstat(etc_after_fd))
             or identity(provenance_before) != identity(os.fstat(provenance_fd))
             or identity(provenance_before) != identity(provenance_after)
+            or identity(package_archive_before) != identity(os.fstat(package_archive_fd))
             or identity(bin_before) != identity(os.fstat(bin_fd))
             or identity(bin_before) != identity(os.fstat(bin_after_fd))
             or identity(before) != identity(os.fstat(bubblewrap_fd))

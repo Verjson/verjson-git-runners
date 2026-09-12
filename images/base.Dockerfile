@@ -33,6 +33,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       bash bubblewrap=${BUBBLEWRAP_VERSION} build-essential ca-certificates coreutils curl diffutils findutils \
       gawk git grep gzip jq pkg-config python3 python3-yaml sed shellcheck sudo tar \
       unzip xz-utils zstd \
+    && cd /tmp \
+    && apt-get download "bubblewrap=${BUBBLEWRAP_VERSION}" \
+    && package_archive="$(find /tmp -maxdepth 1 -type f -name 'bubblewrap_*.deb' -print -quit)" \
+    && test -n "${package_archive}" \
+    && install -m 0444 "${package_archive}" /etc/verjson-bubblewrap.deb \
+    && rm -f "${package_archive}" \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --chmod=0555 scripts/changelog-tool-cache.sh /usr/local/bin/changelog-tool-cache

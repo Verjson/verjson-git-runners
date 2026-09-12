@@ -22,6 +22,7 @@ ENSURE_COPY_ARGUMENTS = '--chmod=0555 scripts/ensure-bubblewrap.sh /usr/local/bi
 ENSURE_RUN_ARGUMENTS = '["/usr/local/bin/ensure-bubblewrap"]'
 HELPER_COPY_ARGUMENTS = '--chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract'
 PROVENANCE_COPY_ARGUMENTS = '--chmod=0444 images/bubblewrap-provenance.json /etc/verjson-bubblewrap-provenance.json'
+PACKAGE_ARCHIVE_PATH = '/etc/verjson-bubblewrap.deb'
 ROOT_USER_ARGUMENTS = "root"
 BUBBLEWRAP_PACKAGE_VERSION = "0.11.1-1ubuntu0.1"
 HEREDOC = re.compile(r"<<(-?)(?:'([^']+)'|\"([^\"]+)\"|([A-Za-z0-9_.-]+))")
@@ -173,6 +174,10 @@ class BubblewrapBehaviorTest(unittest.TestCase):
             encoding="utf-8",
         )
         self.refresh_package_hash()
+        archive = self.root / "etc" / "verjson-bubblewrap.deb"
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        archive.write_bytes(b"bubblewrap package archive")
+        archive.chmod(0o444)
 
         self.write_provenance()
 
@@ -196,7 +201,9 @@ class BubblewrapBehaviorTest(unittest.TestCase):
             "binary_path": binary_path,
             "architectures": {
                 architecture or self.architecture: {
-                    "package_sha256": "0" * 64,
+                    "package_sha256": hashlib.sha256(
+                        (self.root / "etc" / "verjson-bubblewrap.deb").read_bytes()
+                    ).hexdigest(),
                     "binary_sha256": binary_sha256
                     or hashlib.sha256((self.bin / "bwrap").read_bytes()).hexdigest(),
                     "mode": mode,
@@ -294,6 +301,18 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         with self.assertRaises(CONTRACT.ContractError):
             CONTRACT.verify_bubblewrap(self.root, owner=self.owner + 1)
 
+    def test_root_owner_requirement_is_fail_closed(self) -> None:
+        with self.assertRaises(CONTRACT.ContractError):
+            CONTRACT.verify_bubblewrap(self.root, owner=0)
+
+    def test_rejects_rewritten_package_archive(self) -> None:
+        archive = self.root / "etc" / "verjson-bubblewrap.deb"
+        archive.chmod(0o644)
+        archive.write_bytes(b"replacement package")
+        archive.chmod(0o444)
+        with self.assertRaisesRegex(CONTRACT.ContractError, "package archive failed"):
+            self.verify()
+
     def test_rejects_untrusted_ancestry(self) -> None:
         (self.root / "usr").chmod(0o775)
         with self.assertRaises(CONTRACT.ContractError):
@@ -359,6 +378,15 @@ class PublishedImageContractTest(unittest.TestCase):
         self.assertIn(
             f'BUBBLEWRAP_VERSION="${{BUBBLEWRAP_VERSION:-{BUBBLEWRAP_PACKAGE_VERSION}}}"',
             bootstrap,
+        )
+        self.assertIn('apt-get download "bubblewrap=${BUBBLEWRAP_VERSION}"', base)
+        self.assertIn(
+            'install -m 0444 "${package_archive}" /etc/verjson-bubblewrap.deb',
+            base,
+        )
+        self.assertEqual(
+            CONTRACT_PATH.read_text(encoding="utf-8").splitlines()[0],
+            "#!/usr/bin/python3",
         )
         self.assertIn('"bubblewrap=${BUBBLEWRAP_VERSION}"', bootstrap)
         self.assertEqual(provenance["package"], "bubblewrap")
