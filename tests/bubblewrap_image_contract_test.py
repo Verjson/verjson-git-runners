@@ -305,12 +305,32 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         with self.assertRaises(CONTRACT.ContractError):
             CONTRACT.verify_bubblewrap(self.root, owner=0)
 
+    def test_accepts_root_owned_image_when_available(self) -> None:
+        if os.geteuid() != 0:
+            self.skipTest("root ownership cannot be constructed by an unprivileged test")
+        for path in (
+            self.root,
+            self.root / "usr",
+            self.root / "usr" / "bin",
+            self.root / "etc",
+        ):
+            os.chown(path, 0, 0)
+        self.owner = 0
+        self.write_provenance(owner="root:root")
+        self.verify(owner=0)
+
     def test_rejects_rewritten_package_archive(self) -> None:
         archive = self.root / "etc" / "verjson-bubblewrap.deb"
         archive.chmod(0o644)
         archive.write_bytes(b"replacement package")
         archive.chmod(0o444)
         with self.assertRaisesRegex(CONTRACT.ContractError, "package archive failed"):
+            self.verify()
+
+    def test_rejects_writable_package_archive(self) -> None:
+        archive = self.root / "etc" / "verjson-bubblewrap.deb"
+        archive.chmod(0o644)
+        with self.assertRaisesRegex(CONTRACT.ContractError, "package archive is not immutable"):
             self.verify()
 
     def test_rejects_untrusted_ancestry(self) -> None:
@@ -389,6 +409,8 @@ class PublishedImageContractTest(unittest.TestCase):
             "#!/usr/bin/python3",
         )
         self.assertIn('"bubblewrap=${BUBBLEWRAP_VERSION}"', bootstrap)
+        self.assertIn('apt-get download "bubblewrap=${BUBBLEWRAP_VERSION}"', bootstrap)
+        self.assertIn('/etc/verjson-bubblewrap.deb', bootstrap)
         self.assertEqual(provenance["package"], "bubblewrap")
         self.assertEqual(provenance["version"], BUBBLEWRAP_PACKAGE_VERSION)
         self.assertEqual(provenance["binary_path"], "/usr/bin/bwrap")
