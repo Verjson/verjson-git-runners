@@ -17,6 +17,10 @@ CONTRACT = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CONTRACT)
 FINAL_CONTRACT = 'RUN ["/usr/local/bin/bubblewrap-image-contract"]'
 FINAL_CONTRACT_ARGUMENTS = '["/usr/local/bin/bubblewrap-image-contract"]'
+ENSURE_COPY_ARGUMENTS = '--chmod=0555 scripts/ensure-bubblewrap.sh /usr/local/bin/ensure-bubblewrap'
+ENSURE_RUN_ARGUMENTS = '["/usr/local/bin/ensure-bubblewrap"]'
+HELPER_COPY_ARGUMENTS = '--chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract'
+ROOT_USER_ARGUMENTS = "root"
 HEREDOC = re.compile(r"<<(-?)(?:'([^']+)'|\"([^\"]+)\"|([A-Za-z0-9_.-]+))")
 
 
@@ -184,6 +188,54 @@ class PublishedImageContractTest(unittest.TestCase):
                     expected_platforms,
                 )
                 dockerfile = (ROOT / image["file"]).read_text(encoding="utf-8")
+                instructions = dockerfile_instructions(dockerfile)
+                ensure_indexes = [
+                    index
+                    for index, (instruction, arguments) in enumerate(instructions)
+                    if instruction == "COPY" and arguments == ENSURE_COPY_ARGUMENTS
+                ]
+                helper_indexes = [
+                    index
+                    for index, (instruction, arguments) in enumerate(instructions)
+                    if instruction == "COPY" and arguments == HELPER_COPY_ARGUMENTS
+                ]
+                contract_indexes = [
+                    index
+                    for index, (instruction, arguments) in enumerate(instructions)
+                    if instruction == "RUN" and arguments == FINAL_CONTRACT_ARGUMENTS
+                ]
+                self.assertEqual(
+                    len(helper_indexes),
+                    1,
+                    "Bubblewrap contract helper must be copied exactly once",
+                )
+                self.assertEqual(len(contract_indexes), 1)
+                if image["variant"] == "base":
+                    self.assertEqual(ensure_indexes, [])
+                else:
+                    self.assertEqual(
+                        len(ensure_indexes),
+                        1,
+                        "standalone variants must bootstrap Bubblewrap exactly once",
+                    )
+                    ensure_run_indexes = [
+                        index
+                        for index, (instruction, arguments) in enumerate(instructions)
+                        if instruction == "RUN" and arguments == ENSURE_RUN_ARGUMENTS
+                    ]
+                    self.assertEqual(len(ensure_run_indexes), 1)
+                    self.assertLess(ensure_indexes[0], contract_indexes[0])
+                    self.assertLess(ensure_run_indexes[0], contract_indexes[0])
+                    root_user_indexes = [
+                        index
+                        for index, (instruction, arguments) in enumerate(instructions)
+                        if instruction == "USER" and arguments == ROOT_USER_ARGUMENTS
+                    ]
+                    self.assertTrue(
+                        any(index < ensure_run_indexes[0] for index in root_user_indexes),
+                        "standalone bootstrap must run as root",
+                    )
+                self.assertLess(helper_indexes[0], contract_indexes[0])
                 allowed_after = (
                     (("ENTRYPOINT", '["/entrypoint.sh"]'),)
                     if image["variant"] == "base"

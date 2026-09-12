@@ -4,7 +4,12 @@
 ARG VERJSON_BASE_IMAGE=ghcr.io/verjson/gha-runner@sha256:3af0d4949ae7d1282be0cd7bcad0b8f0e5283dacaec014c536ca0ee2c808e7bb
 FROM ${VERJSON_BASE_IMAGE}
 
+COPY --chmod=0555 scripts/ensure-bubblewrap.sh /usr/local/bin/ensure-bubblewrap
 USER root
+RUN ["/usr/local/bin/ensure-bubblewrap"]
+RUN rm -f /usr/local/bin/ensure-bubblewrap
+COPY --chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential pkg-config libssl-dev \
     && rm -rf /var/lib/apt/lists/*
