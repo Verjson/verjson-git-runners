@@ -1,6 +1,5 @@
 ---
 date: 2026-09-12
-id: 20260912T232000Z
 impact: patch
 issue: 194
 title: repair standalone Bubblewrap fallback installation
