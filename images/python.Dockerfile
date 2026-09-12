@@ -17,6 +17,7 @@ USER runner
 ENV PATH=/home/runner/.local/bin:${PATH}
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
   && python3 --version && uv --version
+COPY --chmod=0444 images/bubblewrap-provenance.json /etc/verjson-bubblewrap-provenance.json
 COPY --chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract
 USER runner
 RUN ["/usr/local/bin/bubblewrap-image-contract"]

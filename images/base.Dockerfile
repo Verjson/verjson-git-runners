@@ -105,6 +105,7 @@ RUN case "${TARGETARCH}" in \
     && chown -R runner:runner /home/runner
 
 COPY --chmod=755 entrypoint.sh /entrypoint.sh
+COPY --chmod=0444 images/bubblewrap-provenance.json /etc/verjson-bubblewrap-provenance.json
 COPY --chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract
 
 USER runner

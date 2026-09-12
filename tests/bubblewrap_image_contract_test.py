@@ -21,6 +21,7 @@ FINAL_CONTRACT_ARGUMENTS = '["/usr/local/bin/bubblewrap-image-contract"]'
 ENSURE_COPY_ARGUMENTS = '--chmod=0555 scripts/ensure-bubblewrap.sh /usr/local/bin/ensure-bubblewrap'
 ENSURE_RUN_ARGUMENTS = '["/usr/local/bin/ensure-bubblewrap"]'
 HELPER_COPY_ARGUMENTS = '--chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract'
+PROVENANCE_COPY_ARGUMENTS = '--chmod=0444 images/bubblewrap-provenance.json /etc/verjson-bubblewrap-provenance.json'
 ROOT_USER_ARGUMENTS = "root"
 BUBBLEWRAP_PACKAGE_VERSION = "0.11.1-1ubuntu0.1"
 HEREDOC = re.compile(r"<<(-?)(?:'([^']+)'|\"([^\"]+)\"|([A-Za-z0-9_.-]+))")
@@ -90,6 +91,16 @@ def assert_final_contract(
 def assert_helper_is_final_mutation(
     test: unittest.TestCase, instructions: list[tuple[str, str]]
 ) -> None:
+    provenance_indexes = [
+        index
+        for index, (instruction, arguments) in enumerate(instructions)
+        if instruction == "COPY" and arguments == PROVENANCE_COPY_ARGUMENTS
+    ]
+    test.assertEqual(
+        len(provenance_indexes),
+        1,
+        "Bubblewrap package provenance must be copied exactly once",
+    )
     helper_indexes = [
         index
         for index, (instruction, arguments) in enumerate(instructions)
@@ -101,6 +112,13 @@ def assert_helper_is_final_mutation(
         "Bubblewrap contract helper must be copied exactly once",
     )
     helper_index = helper_indexes[0]
+    provenance_index = provenance_indexes[0]
+    test.assertLess(provenance_index, helper_index)
+    test.assertEqual(
+        instructions[provenance_index + 1],
+        ("COPY", HELPER_COPY_ARGUMENTS),
+        "immutable Bubblewrap provenance must immediately precede the trusted helper",
+    )
     later_mutations = [
         (instruction, arguments)
         for instruction, arguments in instructions[helper_index + 1 :]
@@ -124,6 +142,7 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         (self.root / "usr").chmod(0o755)
         self.bin.chmod(0o755)
         self.owner = os.getuid()
+        self.architecture = CONTRACT._host_architecture()
         self.write_bwrap("0.9.0")
         self.write_package_metadata()
 
@@ -154,6 +173,42 @@ class BubblewrapBehaviorTest(unittest.TestCase):
             encoding="utf-8",
         )
         self.refresh_package_hash()
+
+        self.write_provenance()
+
+    def write_provenance(
+        self,
+        *,
+        package: str = CONTRACT.BUBBLEWRAP_PACKAGE,
+        version: str = CONTRACT.BUBBLEWRAP_PACKAGE_VERSION,
+        binary_path: str = "/usr/bin/bwrap",
+        architecture: str | None = None,
+        binary_sha256: str | None = None,
+        mode: str = "0755",
+        owner: str = "root:root",
+    ) -> None:
+        etc = self.root / "etc"
+        etc.mkdir(parents=True, exist_ok=True)
+        etc.chmod(0o755)
+        provenance = {
+            "package": package,
+            "version": version,
+            "binary_path": binary_path,
+            "architectures": {
+                architecture or self.architecture: {
+                    "package_sha256": "0" * 64,
+                    "binary_sha256": binary_sha256
+                    or hashlib.sha256((self.bin / "bwrap").read_bytes()).hexdigest(),
+                    "mode": mode,
+                    "owner": owner,
+                }
+            },
+        }
+        path = etc / CONTRACT.BUBBLEWRAP_PROVENANCE_NAME
+        if path.exists():
+            path.chmod(0o644)
+        path.write_text(json.dumps(provenance) + "\n", encoding="utf-8")
+        path.chmod(0o444)
 
     def refresh_package_hash(self) -> None:
         digest = hashlib.md5((self.bin / "bwrap").read_bytes()).hexdigest()
@@ -204,13 +259,34 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         ):
             self.verify()
 
-    def test_rejects_binary_not_owned_by_bubblewrap(self) -> None:
-        (self.root / "var/lib/dpkg/info/bubblewrap.list").write_text(
-            "/usr/bin/other\n",
+    def test_rejects_immutable_provenance_with_wrong_binary_path(self) -> None:
+        self.write_provenance(binary_path="/usr/bin/other")
+        with self.assertRaisesRegex(
+            CONTRACT.ContractError, "exact Bubblewrap package"
+        ):
+            self.verify()
+
+    def test_rejects_replacement_with_rewritten_mutable_package_metadata(self) -> None:
+        replacement = self.write_bwrap("99.0.0", self.bin / "replacement")
+        replacement.replace(self.bin / "bwrap")
+        package_root = self.root / "var" / "lib" / "dpkg"
+        (package_root / "status").write_text(
+            "Package: bubblewrap\n"
+            "Status: install ok installed\n"
+            "Architecture: amd64\n"
+            f"Version: {CONTRACT.BUBBLEWRAP_PACKAGE_VERSION}\n\n",
+            encoding="utf-8",
+        )
+        (package_root / "info" / "bubblewrap.list").write_text(
+            "/usr/bin/bwrap\n",
+            encoding="utf-8",
+        )
+        (package_root / "info" / "bubblewrap.md5sums").write_text(
+            f"{hashlib.md5((self.bin / 'bwrap').read_bytes()).hexdigest()}  usr/bin/bwrap\n",
             encoding="utf-8",
         )
         with self.assertRaisesRegex(
-            CONTRACT.ContractError, "not owned by the Bubblewrap package"
+            CONTRACT.ContractError, r"package checksum \(immutable provenance\)"
         ):
             self.verify()
 
@@ -232,6 +308,7 @@ class BubblewrapBehaviorTest(unittest.TestCase):
     def test_rejects_version_below_floor(self) -> None:
         self.write_bwrap("0.8.0")
         self.refresh_package_hash()
+        self.write_provenance()
         with self.assertRaisesRegex(CONTRACT.ContractError, "older than 0.9.0"):
             self.verify()
 
@@ -246,13 +323,22 @@ class BubblewrapBehaviorTest(unittest.TestCase):
 
     def test_rejects_ancestry_replacement_during_descriptor_bound_execution(self) -> None:
         def replace() -> None:
+            provenance = (
+                self.root
+                / "etc"
+                / CONTRACT.BUBBLEWRAP_PROVENANCE_NAME
+            ).read_bytes()
             (self.root / "usr").rename(self.root / "original-usr")
-            replacement_bin = self.root / "usr" / "bin"
-            replacement_bin.mkdir(parents=True)
+            replacement_usr_bin = self.root / "usr" / "bin"
+            replacement_usr_bin.mkdir(parents=True)
             self.root.chmod(0o755)
             (self.root / "usr").chmod(0o755)
-            replacement_bin.chmod(0o755)
-            self.write_bwrap("99.0.0", replacement_bin / "bwrap")
+            replacement_usr_bin.chmod(0o755)
+            provenance_path = self.root / "etc" / CONTRACT.BUBBLEWRAP_PROVENANCE_NAME
+            provenance_path.chmod(0o644)
+            provenance_path.write_bytes(provenance)
+            provenance_path.chmod(0o444)
+            self.write_bwrap("99.0.0", replacement_usr_bin / "bwrap")
 
         with self.assertRaisesRegex(CONTRACT.ContractError, "changed during verification"):
             self.verify(before_execute=replace)
@@ -262,6 +348,9 @@ class PublishedImageContractTest(unittest.TestCase):
     def test_bubblewrap_install_is_exactly_version_pinned(self) -> None:
         base = (ROOT / "images/base.Dockerfile").read_text(encoding="utf-8")
         bootstrap = (ROOT / "scripts/ensure-bubblewrap.sh").read_text(encoding="utf-8")
+        provenance = json.loads(
+            (ROOT / "images/bubblewrap-provenance.json").read_text(encoding="utf-8")
+        )
         self.assertIn(
             f"ARG BUBBLEWRAP_VERSION={BUBBLEWRAP_PACKAGE_VERSION}",
             base,
@@ -272,6 +361,10 @@ class PublishedImageContractTest(unittest.TestCase):
             bootstrap,
         )
         self.assertIn('"bubblewrap=${BUBBLEWRAP_VERSION}"', bootstrap)
+        self.assertEqual(provenance["package"], "bubblewrap")
+        self.assertEqual(provenance["version"], BUBBLEWRAP_PACKAGE_VERSION)
+        self.assertEqual(provenance["binary_path"], "/usr/bin/bwrap")
+        self.assertEqual(set(provenance["architectures"]), {"amd64", "arm64"})
 
     def test_every_published_variant_and_architecture_runs_final_contract(self) -> None:
         config = json.loads((ROOT / "container-candidate.json").read_text(encoding="utf-8"))
@@ -299,6 +392,11 @@ class PublishedImageContractTest(unittest.TestCase):
                     for index, (instruction, arguments) in enumerate(instructions)
                     if instruction == "COPY" and arguments == HELPER_COPY_ARGUMENTS
                 ]
+                provenance_indexes = [
+                    index
+                    for index, (instruction, arguments) in enumerate(instructions)
+                    if instruction == "COPY" and arguments == PROVENANCE_COPY_ARGUMENTS
+                ]
                 contract_indexes = [
                     index
                     for index, (instruction, arguments) in enumerate(instructions)
@@ -309,6 +407,7 @@ class PublishedImageContractTest(unittest.TestCase):
                     1,
                     "Bubblewrap contract helper must be copied exactly once",
                 )
+                self.assertEqual(len(provenance_indexes), 1)
                 self.assertEqual(len(contract_indexes), 1)
                 if image["variant"] == "base":
                     self.assertEqual(ensure_indexes, [])
