@@ -7,7 +7,7 @@ installed_version="$(dpkg-query -W -f='${Version}' bubblewrap 2>/dev/null || tru
 
 if [[ ! -x /usr/bin/bwrap || "$installed_version" != "$BUBBLEWRAP_VERSION" || ! -f /etc/verjson-bubblewrap.deb || ! -f "$BUBBLEWRAP_ANCHOR_PATH" ]]; then
   [[ -x /usr/local/bin/install-bubblewrap ]]
-  BUBBLEWRAP_VERSION="$BUBBLEWRAP_VERSION" /usr/local/bin/install-bubblewrap
+  /usr/bin/env BUBBLEWRAP_VERSION="$BUBBLEWRAP_VERSION" /usr/local/bin/install-bubblewrap
 fi
 
 installed_version="$(dpkg-query -W -f='${Version}' bubblewrap 2>/dev/null || true)"
