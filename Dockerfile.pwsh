@@ -18,7 +18,6 @@ COPY --chmod=0555 scripts/ensure-bubblewrap.sh /usr/local/bin/ensure-bubblewrap
 USER root
 RUN ["/usr/local/bin/ensure-bubblewrap"]
 RUN rm -f /usr/local/bin/ensure-bubblewrap
-COPY --chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract
 
 LABEL com.verjson.gha-runner.capability.pwsh="true"
 
@@ -49,5 +48,6 @@ RUN case "${TARGETARCH}" in \
     rm -f "/tmp/${PWSH_ARCHIVE}"; \
     pwsh --version
 
+COPY --chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract
 USER runner
 RUN ["/usr/local/bin/bubblewrap-image-contract"]

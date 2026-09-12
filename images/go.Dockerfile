@@ -8,7 +8,6 @@ COPY --chmod=0555 scripts/ensure-bubblewrap.sh /usr/local/bin/ensure-bubblewrap
 USER root
 RUN ["/usr/local/bin/ensure-bubblewrap"]
 RUN rm -f /usr/local/bin/ensure-bubblewrap
-COPY --chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract
 
 ARG GO_VERSION=1.23.4
 # TARGETARCH is provided by BuildKit (amd64 / arm64) and matches Go's download naming.
@@ -19,5 +18,6 @@ RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz" \
 ENV PATH=/usr/local/go/bin:/home/runner/go/bin:${PATH} \
     GOPATH=/home/runner/go
 
+COPY --chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract
 USER runner
 RUN ["/usr/local/bin/bubblewrap-image-contract"]

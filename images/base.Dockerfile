@@ -15,11 +15,10 @@ ARG GH_SHA256_ARM64=06f86ec7103d41993b76cd78072f43595c34aaa56506d971d9860e67140b
 ARG NODE_VERSION=24.18.0
 ARG NODE_SHA256_AMD64=55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742
 ARG NODE_SHA256_ARM64=58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe7105886f6
+ARG BUBBLEWRAP_VERSION=0.11.1-1ubuntu0.1
 ARG TARGETARCH
 ENV DEBIAN_FRONTEND=noninteractive
 ENV VERJSON_CHANGELOG_TOOL_CACHE=/opt/verjson/changelog-tools
-
-COPY --chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract
 
 # Install every standard utility exercised by the portable ci admission contract.
 #
@@ -31,7 +30,7 @@ COPY --chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap
 # its own CMake when it does; add the package (a further 96 MB) when a real consumer
 # proves that download unreliable, not before.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      bash bubblewrap build-essential ca-certificates coreutils curl diffutils findutils \
+      bash bubblewrap=${BUBBLEWRAP_VERSION} build-essential ca-certificates coreutils curl diffutils findutils \
       gawk git grep gzip jq pkg-config python3 python3-yaml sed shellcheck sudo tar \
       unzip xz-utils zstd \
     && rm -rf /var/lib/apt/lists/*
@@ -106,6 +105,7 @@ RUN case "${TARGETARCH}" in \
     && chown -R runner:runner /home/runner
 
 COPY --chmod=755 entrypoint.sh /entrypoint.sh
+COPY --chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract
 
 USER runner
 RUN ["/usr/local/bin/bubblewrap-image-contract"]

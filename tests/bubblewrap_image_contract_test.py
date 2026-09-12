@@ -21,6 +21,7 @@ ENSURE_COPY_ARGUMENTS = '--chmod=0555 scripts/ensure-bubblewrap.sh /usr/local/bi
 ENSURE_RUN_ARGUMENTS = '["/usr/local/bin/ensure-bubblewrap"]'
 HELPER_COPY_ARGUMENTS = '--chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract'
 ROOT_USER_ARGUMENTS = "root"
+BUBBLEWRAP_PACKAGE_VERSION = "0.11.1-1ubuntu0.1"
 HEREDOC = re.compile(r"<<(-?)(?:'([^']+)'|\"([^\"]+)\"|([A-Za-z0-9_.-]+))")
 
 
@@ -83,6 +84,33 @@ def assert_final_contract(
             post_contract.append((instruction, arguments))
     test.assertTrue(contract_seen, "final Bubblewrap contract is missing")
     test.assertEqual(tuple(post_contract), allowed_after)
+
+
+def assert_helper_is_final_mutation(
+    test: unittest.TestCase, instructions: list[tuple[str, str]]
+) -> None:
+    helper_indexes = [
+        index
+        for index, (instruction, arguments) in enumerate(instructions)
+        if instruction == "COPY" and arguments == HELPER_COPY_ARGUMENTS
+    ]
+    test.assertEqual(
+        len(helper_indexes),
+        1,
+        "Bubblewrap contract helper must be copied exactly once",
+    )
+    helper_index = helper_indexes[0]
+    later_mutations = [
+        (instruction, arguments)
+        for instruction, arguments in instructions[helper_index + 1 :]
+        if instruction == "COPY"
+        or (instruction == "RUN" and arguments != FINAL_CONTRACT_ARGUMENTS)
+    ]
+    test.assertEqual(
+        later_mutations,
+        [],
+        "no mutating COPY/RUN may follow the trusted Bubblewrap contract helper",
+    )
 
 
 class BubblewrapBehaviorTest(unittest.TestCase):
@@ -173,6 +201,20 @@ class BubblewrapBehaviorTest(unittest.TestCase):
 
 
 class PublishedImageContractTest(unittest.TestCase):
+    def test_bubblewrap_install_is_exactly_version_pinned(self) -> None:
+        base = (ROOT / "images/base.Dockerfile").read_text(encoding="utf-8")
+        bootstrap = (ROOT / "scripts/ensure-bubblewrap.sh").read_text(encoding="utf-8")
+        self.assertIn(
+            f"ARG BUBBLEWRAP_VERSION={BUBBLEWRAP_PACKAGE_VERSION}",
+            base,
+        )
+        self.assertIn(f"bubblewrap=${{BUBBLEWRAP_VERSION}}", base)
+        self.assertIn(
+            f'BUBBLEWRAP_VERSION="${{BUBBLEWRAP_VERSION:-{BUBBLEWRAP_PACKAGE_VERSION}}}"',
+            bootstrap,
+        )
+        self.assertIn('"bubblewrap=${BUBBLEWRAP_VERSION}"', bootstrap)
+
     def test_every_published_variant_and_architecture_runs_final_contract(self) -> None:
         config = json.loads((ROOT / "container-candidate.json").read_text(encoding="utf-8"))
         images = config["images"]
@@ -236,6 +278,17 @@ class PublishedImageContractTest(unittest.TestCase):
                         "standalone bootstrap must run as root",
                     )
                 self.assertLess(helper_indexes[0], contract_indexes[0])
+                assert_helper_is_final_mutation(self, instructions)
+                self.assertEqual(
+                    instructions[helper_indexes[0] + 1],
+                    ("USER", "runner"),
+                    "trusted Bubblewrap contract helper must precede the final runner user",
+                )
+                self.assertEqual(
+                    instructions[helper_indexes[0] + 2],
+                    ("RUN", FINAL_CONTRACT_ARGUMENTS),
+                    "final Bubblewrap contract must immediately follow the runner user",
+                )
                 allowed_after = (
                     (("ENTRYPOINT", '["/entrypoint.sh"]'),)
                     if image["variant"] == "base"
@@ -255,6 +308,26 @@ class PublishedImageContractTest(unittest.TestCase):
         )
         with self.assertRaises(AssertionError):
             assert_final_contract(self, mutated)
+
+    def test_copy_after_helper_fails(self) -> None:
+        mutated = (
+            "FROM base\n"
+            f"COPY {HELPER_COPY_ARGUMENTS.split(' ', 1)[1]}\n"
+            "COPY replacement /usr/bin/bwrap\n"
+            f"{FINAL_CONTRACT}\n"
+        )
+        with self.assertRaises(AssertionError):
+            assert_helper_is_final_mutation(self, dockerfile_instructions(mutated))
+
+    def test_run_after_helper_fails(self) -> None:
+        mutated = (
+            "FROM base\n"
+            f"COPY {HELPER_COPY_ARGUMENTS.split(' ', 1)[1]}\n"
+            "RUN touch /usr/bin/bwrap\n"
+            f"{FINAL_CONTRACT}\n"
+        )
+        with self.assertRaises(AssertionError):
+            assert_helper_is_final_mutation(self, dockerfile_instructions(mutated))
 
     def test_later_from_scratch_fails(self) -> None:
         mutated = f"FROM base\n{FINAL_CONTRACT}\nFROM scratch\n"

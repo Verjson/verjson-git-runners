@@ -105,6 +105,8 @@ def verify_bubblewrap(
         if before_execute is not None:
             before_execute()
 
+        # --version proves runtime compatibility only. Package provenance is established
+        # during image construction by the exact OS-package install contract.
         result = subprocess.run(
             [f"/proc/self/fd/{bubblewrap_fd}", "--version"],
             pass_fds=(bubblewrap_fd,),

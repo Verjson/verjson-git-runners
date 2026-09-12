@@ -8,7 +8,6 @@ COPY --chmod=0555 scripts/ensure-bubblewrap.sh /usr/local/bin/ensure-bubblewrap
 USER root
 RUN ["/usr/local/bin/ensure-bubblewrap"]
 RUN rm -f /usr/local/bin/ensure-bubblewrap
-COPY --chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract
 
 RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
@@ -16,5 +15,6 @@ RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
     && rm -rf /var/lib/apt/lists/* \
     && node --version && npm --version
 
+COPY --chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract
 USER runner
 RUN ["/usr/local/bin/bubblewrap-image-contract"]

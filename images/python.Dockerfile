@@ -8,7 +8,6 @@ COPY --chmod=0555 scripts/ensure-bubblewrap.sh /usr/local/bin/ensure-bubblewrap
 USER root
 RUN ["/usr/local/bin/ensure-bubblewrap"]
 RUN rm -f /usr/local/bin/ensure-bubblewrap
-COPY --chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       python3 python3-pip python3-venv python3-dev build-essential \
@@ -18,4 +17,6 @@ USER runner
 ENV PATH=/home/runner/.local/bin:${PATH}
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
   && python3 --version && uv --version
+COPY --chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract
+USER runner
 RUN ["/usr/local/bin/bubblewrap-image-contract"]

@@ -8,7 +8,6 @@ COPY --chmod=0555 scripts/ensure-bubblewrap.sh /usr/local/bin/ensure-bubblewrap
 USER root
 RUN ["/usr/local/bin/ensure-bubblewrap"]
 RUN rm -f /usr/local/bin/ensure-bubblewrap
-COPY --chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential pkg-config libssl-dev \
@@ -21,4 +20,6 @@ ENV RUSTUP_HOME=/home/runner/.rustup \
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
   | sh -s -- -y --profile minimal -c clippy -c rustfmt \
   && rustc --version && cargo --version
+COPY --chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract
+USER runner
 RUN ["/usr/local/bin/bubblewrap-image-contract"]
