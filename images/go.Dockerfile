@@ -5,9 +5,10 @@ ARG VERJSON_BASE_IMAGE=ghcr.io/verjson/gha-runner@sha256:3af0d4949ae7d1282be0cd7
 FROM ${VERJSON_BASE_IMAGE}
 
 COPY --chmod=0555 scripts/ensure-bubblewrap.sh /usr/local/bin/ensure-bubblewrap
+COPY --chmod=0555 scripts/install-bubblewrap.sh /usr/local/bin/install-bubblewrap
 USER root
 RUN ["/usr/local/bin/ensure-bubblewrap"]
-RUN rm -f /usr/local/bin/ensure-bubblewrap
+RUN rm -f /usr/local/bin/ensure-bubblewrap /usr/local/bin/install-bubblewrap
 
 ARG GO_VERSION=1.23.4
 # TARGETARCH is provided by BuildKit (amd64 / arm64) and matches Go's download naming.

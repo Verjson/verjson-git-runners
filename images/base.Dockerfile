@@ -30,7 +30,8 @@ ENV VERJSON_CHANGELOG_TOOL_CACHE=/opt/verjson/changelog-tools
 # its own CMake when it does; add the package (a further 96 MB) when a real consumer
 # proves that download unreliable, not before.
 COPY --chmod=0555 scripts/install-bubblewrap.sh /usr/local/bin/install-bubblewrap
-RUN BUBBLEWRAP_VERSION="${BUBBLEWRAP_VERSION}" /usr/local/bin/install-bubblewrap
+RUN BUBBLEWRAP_VERSION="${BUBBLEWRAP_VERSION}" /usr/local/bin/install-bubblewrap \
+    && rm -f /usr/local/bin/install-bubblewrap
 RUN apt-get update && apt-get install -y --no-install-recommends \
       bash build-essential ca-certificates coreutils curl diffutils findutils \
       gawk git grep gzip jq pkg-config python3 python3-yaml sed shellcheck sudo tar \
