@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -124,6 +125,7 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         self.bin.chmod(0o755)
         self.owner = os.getuid()
         self.write_bwrap("0.9.0")
+        self.write_package_metadata()
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -133,6 +135,34 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         target.write_text(f"#!/bin/sh\nprintf 'bubblewrap {version}\\n'\n", encoding="utf-8")
         target.chmod(0o755)
         return target
+
+    def write_package_metadata(self) -> None:
+        package_root = self.root / "var" / "lib" / "dpkg"
+        info = package_root / "info"
+        info.mkdir(parents=True)
+        (package_root / "status").write_text(
+            "Package: bubblewrap\n"
+            "Status: install ok installed\n"
+            "Architecture: amd64\n"
+            f"Version: {CONTRACT.BUBBLEWRAP_PACKAGE_VERSION}\n"
+            "Maintainer: Bubblewrap Test <test@example.invalid>\n"
+            "Description: test Bubblewrap package\n\n",
+            encoding="utf-8",
+        )
+        (info / "bubblewrap.list").write_text(
+            "/usr/bin/bwrap\n",
+            encoding="utf-8",
+        )
+        self.refresh_package_hash()
+
+    def refresh_package_hash(self) -> None:
+        digest = hashlib.md5((self.bin / "bwrap").read_bytes()).hexdigest()
+        (
+            self.root / "var" / "lib" / "dpkg" / "info" / "bubblewrap.md5sums"
+        ).write_text(
+            f"{digest}  usr/bin/bwrap\n",
+            encoding="utf-8",
+        )
 
     def verify(self, **kwargs: object) -> None:
         CONTRACT.verify_bubblewrap(self.root, owner=self.owner, **kwargs)
@@ -157,6 +187,33 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         with self.assertRaises(CONTRACT.ContractError):
             self.verify()
 
+    def test_rejects_special_mode_bits(self) -> None:
+        for special_mode in (0o4755, 0o2755, 0o1755):
+            with self.subTest(mode=oct(special_mode)):
+                (self.bin / "bwrap").chmod(special_mode)
+                with self.assertRaisesRegex(
+                    CONTRACT.ContractError, "special mode bits"
+                ):
+                    self.verify()
+                (self.bin / "bwrap").chmod(0o755)
+
+    def test_rejects_root_owned_version_spoof_with_package_hash_mismatch(self) -> None:
+        self.write_bwrap("99.0.0")
+        with self.assertRaisesRegex(
+            CONTRACT.ContractError, "failed the Bubblewrap package checksum"
+        ):
+            self.verify()
+
+    def test_rejects_binary_not_owned_by_bubblewrap(self) -> None:
+        (self.root / "var/lib/dpkg/info/bubblewrap.list").write_text(
+            "/usr/bin/other\n",
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(
+            CONTRACT.ContractError, "not owned by the Bubblewrap package"
+        ):
+            self.verify()
+
     def test_rejects_wrong_owner(self) -> None:
         with self.assertRaises(CONTRACT.ContractError):
             CONTRACT.verify_bubblewrap(self.root, owner=self.owner + 1)
@@ -174,7 +231,8 @@ class BubblewrapBehaviorTest(unittest.TestCase):
 
     def test_rejects_version_below_floor(self) -> None:
         self.write_bwrap("0.8.0")
-        with self.assertRaises(CONTRACT.ContractError):
+        self.refresh_package_hash()
+        with self.assertRaisesRegex(CONTRACT.ContractError, "older than 0.9.0"):
             self.verify()
 
     def test_rejects_path_replacement_during_descriptor_bound_execution(self) -> None:

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import stat
@@ -9,6 +10,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 MINIMUM_VERSION = (0, 9, 0)
+BUBBLEWRAP_PACKAGE = "bubblewrap"
+BUBBLEWRAP_PACKAGE_VERSION = "0.11.1-1ubuntu0.1"
 
 
 class ContractError(RuntimeError):
@@ -51,13 +54,86 @@ def _open_bubblewrap(bin_fd: int, owner: int) -> tuple[int, os.stat_result]:
         os.close(descriptor)
         raise ContractError("/usr/bin/bwrap must be owned by root:root")
     mode = stat.S_IMODE(metadata.st_mode)
-    if mode & 0o022:
+    if mode & (0o022 | stat.S_ISUID | stat.S_ISGID | stat.S_ISVTX):
         os.close(descriptor)
-        raise ContractError("/usr/bin/bwrap must not be group- or world-writable")
+        raise ContractError("/usr/bin/bwrap must not be writable or have special mode bits")
     if not mode & 0o111:
         os.close(descriptor)
         raise ContractError("/usr/bin/bwrap must be executable")
     return descriptor, metadata
+
+
+def _run_package_command(
+    root: Path, executable: str, arguments: list[str]
+) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            [executable, f"--root={root}", *arguments],
+            check=False,
+            capture_output=True,
+            text=True,
+            env={"LC_ALL": "C"},
+        )
+    except OSError as error:
+        raise ContractError("Bubblewrap package provenance is unavailable") from error
+
+
+def _verify_bubblewrap_package(root: Path, bubblewrap_fd: int) -> None:
+    status = _run_package_command(
+        root,
+        "/usr/bin/dpkg-query",
+        [
+            "--showformat=${Status}\t${Version}\n",
+            "--show",
+            BUBBLEWRAP_PACKAGE,
+        ],
+    )
+    expected_status = f"install ok installed\t{BUBBLEWRAP_PACKAGE_VERSION}\n"
+    if status.returncode != 0 or status.stdout != expected_status or status.stderr:
+        raise ContractError("/usr/bin/bwrap is not provided by the exact Bubblewrap package")
+
+    ownership = _run_package_command(
+        root,
+        "/usr/bin/dpkg-query",
+        ["--search", "/usr/bin/bwrap"],
+    )
+    owners = []
+    for line in ownership.stdout.splitlines():
+        package, separator, path = line.rpartition(": ")
+        if separator:
+            owners.append((package, path))
+    if (
+        ownership.returncode != 0
+        or ownership.stderr
+        or len(owners) != 1
+        or owners[0][1] != "/usr/bin/bwrap"
+        or owners[0][0].split(":", 1)[0] != BUBBLEWRAP_PACKAGE
+    ):
+        raise ContractError("/usr/bin/bwrap is not owned by the Bubblewrap package")
+
+    checksums = _run_package_command(
+        root,
+        "/usr/bin/dpkg-query",
+        ["--control-show", BUBBLEWRAP_PACKAGE, "md5sums"],
+    )
+    checksum_records = [
+        match
+        for line in checksums.stdout.splitlines()
+        if (match := re.fullmatch(r"([0-9a-f]{32})\s+usr/bin/bwrap", line))
+    ]
+    if checksums.returncode != 0 or checksums.stderr or len(checksum_records) != 1:
+        raise ContractError("Bubblewrap package has no checksum record for /usr/bin/bwrap")
+
+    digest = hashlib.md5()
+    offset = 0
+    try:
+        while chunk := os.pread(bubblewrap_fd, 1024 * 1024, offset):
+            digest.update(chunk)
+            offset += len(chunk)
+    except OSError as error:
+        raise ContractError("/usr/bin/bwrap could not be hashed") from error
+    if digest.hexdigest() != checksum_records[0].group(1):
+        raise ContractError("/usr/bin/bwrap failed the Bubblewrap package checksum")
 
 
 def verify_bubblewrap(
@@ -102,11 +178,11 @@ def verify_bubblewrap(
         bubblewrap_fd, before = _open_bubblewrap(bin_fd, owner)
         descriptors.append(bubblewrap_fd)
 
+        _verify_bubblewrap_package(root, bubblewrap_fd)
+
         if before_execute is not None:
             before_execute()
 
-        # --version proves runtime compatibility only. Package provenance is established
-        # during image construction by the exact OS-package install contract.
         result = subprocess.run(
             [f"/proc/self/fd/{bubblewrap_fd}", "--version"],
             pass_fds=(bubblewrap_fd,),
