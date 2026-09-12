@@ -16,7 +16,7 @@ apt-get update
 mapfile -t package_archives < <(find "$package_directory" -maxdepth 1 -type f -name 'bubblewrap_*.deb' -print)
 [[ "${#package_archives[@]}" -eq 1 ]]
 package_archive="${package_archives[0]}"
-expected_sha256="$(apt-cache show "bubblewrap=${BUBBLEWRAP_VERSION}" | awk -F': ' '$1 == "SHA256" { print $2; exit }')"
+expected_sha256="$(apt-cache show "bubblewrap=${BUBBLEWRAP_VERSION}" | awk -F': ' '$1 == "SHA256" && !found { print $2; found=1 }')"
 [[ "$expected_sha256" =~ ^[0-9a-f]{64}$ ]]
 printf '%s  %s\n' "$expected_sha256" "$package_archive" | sha256sum -c -
 [[ "$(dpkg-deb -f "$package_archive" Package)" == bubblewrap ]]
