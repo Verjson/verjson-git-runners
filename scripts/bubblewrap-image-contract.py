@@ -235,17 +235,22 @@ def _verify_bubblewrap_package(
 
     architecture = _host_architecture()
     record = provenance["architectures"].get(architecture)
-    if not isinstance(record, dict) or set(record) != {"mode", "owner"}:
+    if not isinstance(record, dict) or set(record) != {"mode", "owner", "package_sha256"}:
         raise ContractError("Bubblewrap package provenance has no exact architecture record")
     mode = record["mode"]
+    package_sha256 = record["package_sha256"]
     if (
         record["owner"] != "root:root"
         or not isinstance(mode, str)
         or mode != "0755"
+        or not isinstance(package_sha256, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", package_sha256)
     ):
         raise ContractError("Bubblewrap package provenance is invalid")
 
-    package_sha256 = _read_package_anchor(anchor_fd, anchor_metadata, architecture)
+    anchor_sha256 = _read_package_anchor(anchor_fd, anchor_metadata, architecture)
+    if anchor_sha256 != package_sha256:
+        raise ContractError("Bubblewrap package checksum anchor differs from immutable provenance")
     if _hash_fd(package_archive_fd, "Bubblewrap package archive") != package_sha256:
         raise ContractError("Bubblewrap package archive failed the authenticated APT checksum")
     if _hash_fd(bubblewrap_fd, "/usr/bin/bwrap") != _package_binary_hash(package_archive_fd):

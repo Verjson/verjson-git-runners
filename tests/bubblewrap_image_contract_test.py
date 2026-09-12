@@ -233,6 +233,7 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         architecture: str | None = None,
         mode: str = "0755",
         owner: str = "root:root",
+        package_sha256: str | None = None,
     ) -> None:
         etc = self.root / "etc"
         etc.mkdir(parents=True, exist_ok=True)
@@ -242,9 +243,17 @@ class BubblewrapBehaviorTest(unittest.TestCase):
             "version": version,
             "binary_path": binary_path,
             "architectures": {
-                architecture or self.architecture: {
-                    "mode": mode,
-                    "owner": owner,
+                    architecture or self.architecture: {
+                        "mode": mode,
+                        "owner": owner,
+                        "package_sha256": package_sha256
+                        or hashlib.sha256(
+                            (
+                                self.root
+                                / "etc"
+                                / "verjson-bubblewrap.deb"
+                            ).read_bytes()
+                        ).hexdigest(),
                 }
             },
         }
@@ -364,6 +373,16 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         archive.write_bytes(b"replacement package")
         archive.chmod(0o444)
         with self.assertRaisesRegex(CONTRACT.ContractError, "package archive failed"):
+            self.verify()
+
+    def test_rejects_package_anchor_different_from_immutable_provenance(self) -> None:
+        anchor = self.root / "etc" / CONTRACT.BUBBLEWRAP_PACKAGE_ANCHOR_NAME
+        anchor_payload = json.loads(anchor.read_text(encoding="utf-8"))
+        anchor_payload["sha256"] = "0" * 64
+        anchor.chmod(0o644)
+        anchor.write_text(json.dumps(anchor_payload), encoding="utf-8")
+        anchor.chmod(0o444)
+        with self.assertRaisesRegex(CONTRACT.ContractError, "anchor differs"):
             self.verify()
 
     def test_rejects_package_archive_replaced_during_verification(self) -> None:
@@ -502,7 +521,8 @@ class PublishedImageContractTest(unittest.TestCase):
         self.assertEqual(provenance["binary_path"], "/usr/bin/bwrap")
         self.assertEqual(set(provenance["architectures"]), {"amd64", "arm64"})
         for record in provenance["architectures"].values():
-            self.assertEqual(set(record), {"mode", "owner"})
+            self.assertEqual(set(record), {"mode", "owner", "package_sha256"})
+            self.assertRegex(record["package_sha256"], r"[0-9a-f]{64}")
 
     def test_every_published_variant_and_architecture_runs_final_contract(self) -> None:
         config = json.loads((ROOT / "container-candidate.json").read_text(encoding="utf-8"))
