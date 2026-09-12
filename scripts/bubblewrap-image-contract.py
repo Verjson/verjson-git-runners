@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import os
 import re
 import stat
 import subprocess
+import tarfile
 from collections.abc import Callable
 from pathlib import Path
 
@@ -16,6 +18,8 @@ BUBBLEWRAP_PACKAGE_VERSION = "0.11.1-1ubuntu0.1"
 BUBBLEWRAP_PROVENANCE_PATH = "/etc/verjson-bubblewrap-provenance.json"
 BUBBLEWRAP_PROVENANCE_NAME = Path(BUBBLEWRAP_PROVENANCE_PATH).name
 BUBBLEWRAP_PACKAGE_ARCHIVE_NAME = "verjson-bubblewrap.deb"
+BUBBLEWRAP_PACKAGE_ANCHOR_PATH = "/etc/verjson-bubblewrap-apt-sha256.json"
+BUBBLEWRAP_PACKAGE_ANCHOR_NAME = Path(BUBBLEWRAP_PACKAGE_ANCHOR_PATH).name
 
 
 class ContractError(RuntimeError):
@@ -132,9 +136,88 @@ def _open_package_archive(etc_fd: int, owner: int) -> tuple[int, os.stat_result]
     return descriptor, metadata
 
 
+def _package_binary_hash(package_archive_fd: int) -> str:
+    try:
+        package = subprocess.run(
+            ["dpkg-deb", "--fsys-tarfile", f"/proc/self/fd/{package_archive_fd}"],
+            check=True,
+            capture_output=True,
+            pass_fds=(package_archive_fd,),
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise ContractError("Bubblewrap package archive is not a readable Debian package") from error
+
+    try:
+        with tarfile.open(fileobj=io.BytesIO(package.stdout), mode="r:") as filesystem:
+            binary = next(
+                (
+                    member
+                    for member in filesystem.getmembers()
+                    if member.name.lstrip("./") == "usr/bin/bwrap"
+                ),
+                None,
+            )
+            if binary is None or not binary.isfile():
+                raise ContractError("Bubblewrap package archive has no regular usr/bin/bwrap")
+            stream = filesystem.extractfile(binary)
+            if stream is None:
+                raise ContractError("Bubblewrap package archive binary is unreadable")
+            digest = hashlib.sha256()
+            while chunk := stream.read(1024 * 1024):
+                digest.update(chunk)
+            return digest.hexdigest()
+    except (OSError, tarfile.TarError) as error:
+        raise ContractError("Bubblewrap package archive filesystem is unreadable") from error
+
+
+def _read_package_anchor(anchor_fd: int, metadata: os.stat_result, architecture: str) -> str:
+    if metadata.st_size > 16 * 1024:
+        raise ContractError("Bubblewrap package checksum anchor is too large")
+    try:
+        contents = os.pread(anchor_fd, metadata.st_size, 0)
+        anchor = json.loads(contents)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ContractError("Bubblewrap package checksum anchor is invalid") from error
+    if not isinstance(anchor, dict) or set(anchor) != {"package", "version", "architecture", "sha256"}:
+        raise ContractError("Bubblewrap package checksum anchor is invalid")
+    checksum = anchor["sha256"]
+    if (
+        anchor["package"] != BUBBLEWRAP_PACKAGE
+        or anchor["version"] != BUBBLEWRAP_PACKAGE_VERSION
+        or anchor["architecture"] != architecture
+        or not isinstance(checksum, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", checksum)
+    ):
+        raise ContractError("Bubblewrap package checksum anchor is invalid")
+    return checksum
+
+
+def _open_package_anchor(etc_fd: int, owner: int) -> tuple[int, os.stat_result]:
+    try:
+        descriptor = os.open(
+            BUBBLEWRAP_PACKAGE_ANCHOR_NAME,
+            os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK,
+            dir_fd=etc_fd,
+        )
+    except OSError as error:
+        raise ContractError("Bubblewrap package checksum anchor is unavailable") from error
+    metadata = os.fstat(descriptor)
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or metadata.st_uid != owner
+        or metadata.st_gid != owner
+        or stat.S_IMODE(metadata.st_mode) != 0o444
+    ):
+        os.close(descriptor)
+        raise ContractError("Bubblewrap package checksum anchor is not immutable")
+    return descriptor, metadata
+
+
 def _verify_bubblewrap_package(
     provenance_fd: int,
     provenance_metadata: os.stat_result,
+    anchor_fd: int,
+    anchor_metadata: os.stat_result,
     package_archive_fd: int,
     bubblewrap_fd: int,
     bubblewrap_metadata: os.stat_result,
@@ -152,33 +235,21 @@ def _verify_bubblewrap_package(
 
     architecture = _host_architecture()
     record = provenance["architectures"].get(architecture)
-    if not isinstance(record, dict) or set(record) != {
-        "package_sha256",
-        "binary_sha256",
-        "mode",
-        "owner",
-    }:
+    if not isinstance(record, dict) or set(record) != {"mode", "owner"}:
         raise ContractError("Bubblewrap package provenance has no exact architecture record")
-    package_sha256 = record["package_sha256"]
-    binary_sha256 = record["binary_sha256"]
     mode = record["mode"]
     if (
-        not isinstance(package_sha256, str)
-        or not re.fullmatch(r"[0-9a-f]{64}", package_sha256)
-        or not isinstance(binary_sha256, str)
-        or not re.fullmatch(r"[0-9a-f]{64}", binary_sha256)
-        or record["owner"] != "root:root"
+        record["owner"] != "root:root"
         or not isinstance(mode, str)
         or mode != "0755"
     ):
         raise ContractError("Bubblewrap package provenance is invalid")
 
+    package_sha256 = _read_package_anchor(anchor_fd, anchor_metadata, architecture)
     if _hash_fd(package_archive_fd, "Bubblewrap package archive") != package_sha256:
-        raise ContractError("Bubblewrap package archive failed immutable provenance checksum")
-    if _hash_fd(bubblewrap_fd, "/usr/bin/bwrap") != binary_sha256:
-        raise ContractError(
-            "/usr/bin/bwrap failed the Bubblewrap package checksum (immutable provenance)"
-        )
+        raise ContractError("Bubblewrap package archive failed the authenticated APT checksum")
+    if _hash_fd(bubblewrap_fd, "/usr/bin/bwrap") != _package_binary_hash(package_archive_fd):
+        raise ContractError("/usr/bin/bwrap differs from the authenticated Bubblewrap package")
     if stat.S_IMODE(bubblewrap_metadata.st_mode) != int(mode, 8):
         raise ContractError("/usr/bin/bwrap has an unexpected package mode")
 
@@ -241,6 +312,8 @@ def verify_bubblewrap(
             raise ContractError("Bubblewrap package provenance is not immutable")
         package_archive_fd, package_archive_before = _open_package_archive(etc_fd, owner)
         descriptors.append(package_archive_fd)
+        anchor_fd, anchor_before = _open_package_anchor(etc_fd, owner)
+        descriptors.append(anchor_fd)
         bin_fd = _trusted_directory(usr_fd, "bin", "/usr/bin", owner)
         descriptors.append(bin_fd)
         bin_before = os.fstat(bin_fd)
@@ -250,6 +323,8 @@ def verify_bubblewrap(
         _verify_bubblewrap_package(
             provenance_fd,
             provenance_before,
+            anchor_fd,
+            anchor_before,
             package_archive_fd,
             bubblewrap_fd,
             before,
@@ -289,6 +364,8 @@ def verify_bubblewrap(
             raise ContractError("Bubblewrap package provenance is unavailable") from error
         descriptors.append(provenance_after_fd)
         provenance_after = os.fstat(provenance_after_fd)
+        anchor_after_fd, anchor_after = _open_package_anchor(etc_after_fd, owner)
+        descriptors.append(anchor_after_fd)
         bin_after_fd = _trusted_directory(usr_after_fd, "bin", "/usr/bin", owner)
         descriptors.append(bin_after_fd)
         after_fd, after = _open_bubblewrap(bin_after_fd, owner)
@@ -300,11 +377,14 @@ def verify_bubblewrap(
         if (
             identity(before) != identity(after)
             or identity(package_archive_before) != identity(package_archive_after)
+            or identity(anchor_before) != identity(anchor_after)
         ):
             raise ContractError("/usr/bin/bwrap changed during verification")
         _verify_bubblewrap_package(
             provenance_after_fd,
             provenance_after,
+            anchor_after_fd,
+            anchor_after,
             package_archive_after_fd,
             after_fd,
             after,
@@ -318,6 +398,8 @@ def verify_bubblewrap(
             or identity(provenance_before) != identity(provenance_after)
             or identity(package_archive_before) != identity(os.fstat(package_archive_fd))
             or identity(package_archive_before) != identity(package_archive_after)
+            or identity(anchor_before) != identity(os.fstat(anchor_fd))
+            or identity(anchor_before) != identity(anchor_after)
             or identity(bin_before) != identity(os.fstat(bin_fd))
             or identity(bin_before) != identity(os.fstat(bin_after_fd))
             or identity(before) != identity(os.fstat(bubblewrap_fd))

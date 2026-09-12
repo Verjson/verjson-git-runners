@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 import re
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -25,16 +26,6 @@ PROVENANCE_COPY_ARGUMENTS = '--chmod=0444 images/bubblewrap-provenance.json /etc
 PACKAGE_ARCHIVE_PATH = '/etc/verjson-bubblewrap.deb'
 ROOT_USER_ARGUMENTS = "root"
 BUBBLEWRAP_PACKAGE_VERSION = "0.11.1-1ubuntu0.1"
-SHIPPED_BUBBLEWRAP_CHECKSUMS = {
-    "amd64": {
-        "package_sha256": "b353088d1003adb3f760deeccfb84c47928a36c8dc102bf680efc94eb19f4408",
-        "binary_sha256": "0abea81db798ebf6b4742ac0664802d97521547a353c2a0dbdc21d76cbbfd2c0",
-    },
-    "arm64": {
-        "package_sha256": "7798d8926cf4c51cfc56187703499d75f7ab66d199a700d1093b45916d7120c0",
-        "binary_sha256": "29cb90e51494b3765b7b36587b0635863898d1e85025e082674121bcdf34a08b",
-    },
-}
 HEREDOC = re.compile(r"<<(-?)(?:'([^']+)'|\"([^\"]+)\"|([A-Za-z0-9_.-]+))")
 
 
@@ -184,12 +175,54 @@ class BubblewrapBehaviorTest(unittest.TestCase):
             encoding="utf-8",
         )
         self.refresh_package_hash()
-        archive = self.root / "etc" / "verjson-bubblewrap.deb"
-        archive.parent.mkdir(parents=True, exist_ok=True)
-        archive.write_bytes(b"bubblewrap package archive")
-        archive.chmod(0o444)
+        self.write_package_archive()
 
         self.write_provenance()
+
+    def write_package_archive(self) -> None:
+        package_root = self.root / "package-build"
+        data_root = package_root / "usr" / "bin"
+        control_root = package_root / "DEBIAN"
+        data_root.mkdir(parents=True, exist_ok=True)
+        control_root.mkdir(parents=True, exist_ok=True)
+        (data_root / "bwrap").write_bytes((self.bin / "bwrap").read_bytes())
+        (control_root / "control").write_text(
+            "Package: bubblewrap\n"
+            f"Version: {CONTRACT.BUBBLEWRAP_PACKAGE_VERSION}\n"
+            f"Architecture: {self.architecture}\n"
+            "Maintainer: Bubblewrap Test <test@example.invalid>\n"
+            "Description: test Bubblewrap package\n",
+            encoding="utf-8",
+        )
+        built_archive = package_root.with_suffix(".deb")
+        subprocess.run(
+            ["dpkg-deb", "--build", "--root-owner-group", package_root, built_archive],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        archive = self.root / "etc" / "verjson-bubblewrap.deb"
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        if archive.exists():
+            archive.chmod(0o644)
+        archive.write_bytes(built_archive.read_bytes())
+        archive.chmod(0o444)
+        anchor = self.root / "etc" / CONTRACT.BUBBLEWRAP_PACKAGE_ANCHOR_NAME
+        if anchor.exists():
+            anchor.chmod(0o644)
+        anchor.write_text(
+            json.dumps(
+                {
+                    "package": CONTRACT.BUBBLEWRAP_PACKAGE,
+                    "version": CONTRACT.BUBBLEWRAP_PACKAGE_VERSION,
+                    "architecture": self.architecture,
+                    "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        anchor.chmod(0o444)
 
     def write_provenance(
         self,
@@ -198,7 +231,6 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         version: str = CONTRACT.BUBBLEWRAP_PACKAGE_VERSION,
         binary_path: str = "/usr/bin/bwrap",
         architecture: str | None = None,
-        binary_sha256: str | None = None,
         mode: str = "0755",
         owner: str = "root:root",
     ) -> None:
@@ -211,11 +243,6 @@ class BubblewrapBehaviorTest(unittest.TestCase):
             "binary_path": binary_path,
             "architectures": {
                 architecture or self.architecture: {
-                    "package_sha256": hashlib.sha256(
-                        (self.root / "etc" / "verjson-bubblewrap.deb").read_bytes()
-                    ).hexdigest(),
-                    "binary_sha256": binary_sha256
-                    or hashlib.sha256((self.bin / "bwrap").read_bytes()).hexdigest(),
                     "mode": mode,
                     "owner": owner,
                 }
@@ -272,7 +299,7 @@ class BubblewrapBehaviorTest(unittest.TestCase):
     def test_rejects_root_owned_version_spoof_with_package_hash_mismatch(self) -> None:
         self.write_bwrap("99.0.0")
         with self.assertRaisesRegex(
-            CONTRACT.ContractError, "failed the Bubblewrap package checksum"
+            CONTRACT.ContractError, "differs from the authenticated Bubblewrap package"
         ):
             self.verify()
 
@@ -303,7 +330,7 @@ class BubblewrapBehaviorTest(unittest.TestCase):
             encoding="utf-8",
         )
         with self.assertRaisesRegex(
-            CONTRACT.ContractError, r"package checksum \(immutable provenance\)"
+            CONTRACT.ContractError, "differs from the authenticated Bubblewrap package"
         ):
             self.verify()
 
@@ -323,6 +350,8 @@ class BubblewrapBehaviorTest(unittest.TestCase):
             self.root / "usr",
             self.root / "usr" / "bin",
             self.root / "etc",
+            self.root / "etc" / "verjson-bubblewrap.deb",
+            self.root / "etc" / CONTRACT.BUBBLEWRAP_PACKAGE_ANCHOR_NAME,
         ):
             os.chown(path, 0, 0)
         self.owner = 0
@@ -393,6 +422,7 @@ class BubblewrapBehaviorTest(unittest.TestCase):
     def test_rejects_version_below_floor(self) -> None:
         self.write_bwrap("0.8.0")
         self.refresh_package_hash()
+        self.write_package_archive()
         self.write_provenance()
         with self.assertRaisesRegex(CONTRACT.ContractError, "older than 0.9.0"):
             self.verify()
@@ -433,6 +463,7 @@ class PublishedImageContractTest(unittest.TestCase):
     def test_bubblewrap_install_is_exactly_version_pinned(self) -> None:
         base = (ROOT / "images/base.Dockerfile").read_text(encoding="utf-8")
         bootstrap = (ROOT / "scripts/ensure-bubblewrap.sh").read_text(encoding="utf-8")
+        installer = (ROOT / "scripts/install-bubblewrap.sh").read_text(encoding="utf-8")
         provenance = json.loads(
             (ROOT / "images/bubblewrap-provenance.json").read_text(encoding="utf-8")
         )
@@ -440,42 +471,38 @@ class PublishedImageContractTest(unittest.TestCase):
             f"ARG BUBBLEWRAP_VERSION={BUBBLEWRAP_PACKAGE_VERSION}",
             base,
         )
-        self.assertIn(f"bubblewrap=${{BUBBLEWRAP_VERSION}}", base)
+        self.assertIn(
+            'COPY --chmod=0555 scripts/install-bubblewrap.sh /usr/local/bin/install-bubblewrap',
+            base,
+        )
+        self.assertIn(
+            'RUN BUBBLEWRAP_VERSION="${BUBBLEWRAP_VERSION}" /usr/local/bin/install-bubblewrap',
+            base,
+        )
         self.assertIn(
             f'BUBBLEWRAP_VERSION="${{BUBBLEWRAP_VERSION:-{BUBBLEWRAP_PACKAGE_VERSION}}}"',
             bootstrap,
         )
-        self.assertIn('apt-get download "bubblewrap=${BUBBLEWRAP_VERSION}"', base)
-        self.assertIn(
-            'install -m 0444 "${package_archive}" /etc/verjson-bubblewrap.deb',
-            base,
+        self.assertIn('apt-cache show "bubblewrap=${BUBBLEWRAP_VERSION}"', installer)
+        self.assertIn('sha256sum -c -', installer)
+        self.assertIn('apt-get install -y --no-install-recommends "$package_archive"', installer)
+        self.assertIn('/etc/verjson-bubblewrap-apt-sha256.json', installer)
+        self.assertLess(
+            installer.index('sha256sum -c -'),
+            installer.index('apt-get install -y --no-install-recommends "$package_archive"'),
         )
         self.assertEqual(
             CONTRACT_PATH.read_text(encoding="utf-8").splitlines()[0],
             "#!/usr/bin/python3",
         )
-        self.assertIn('"bubblewrap=${BUBBLEWRAP_VERSION}"', bootstrap)
-        self.assertIn('apt-get download "bubblewrap=${BUBBLEWRAP_VERSION}"', bootstrap)
+        self.assertIn('apt-get download "bubblewrap=${BUBBLEWRAP_VERSION}"', installer)
         self.assertIn('/etc/verjson-bubblewrap.deb', bootstrap)
         self.assertEqual(provenance["package"], "bubblewrap")
         self.assertEqual(provenance["version"], BUBBLEWRAP_PACKAGE_VERSION)
         self.assertEqual(provenance["binary_path"], "/usr/bin/bwrap")
         self.assertEqual(set(provenance["architectures"]), {"amd64", "arm64"})
-
-    def test_shipped_provenance_checksums_are_pinned(self) -> None:
-        provenance = json.loads(
-            (ROOT / "images/bubblewrap-provenance.json").read_text(encoding="utf-8")
-        )
-        self.assertEqual(
-            {
-                architecture: {
-                    key: provenance["architectures"][architecture][key]
-                    for key in ("package_sha256", "binary_sha256")
-                }
-                for architecture in SHIPPED_BUBBLEWRAP_CHECKSUMS
-            },
-            SHIPPED_BUBBLEWRAP_CHECKSUMS,
-        )
+        for record in provenance["architectures"].values():
+            self.assertEqual(set(record), {"mode", "owner"})
 
     def test_every_published_variant_and_architecture_runs_final_contract(self) -> None:
         config = json.loads((ROOT / "container-candidate.json").read_text(encoding="utf-8"))
@@ -520,19 +547,20 @@ class PublishedImageContractTest(unittest.TestCase):
                 )
                 self.assertEqual(len(provenance_indexes), 1)
                 self.assertEqual(len(contract_indexes), 1)
+                ensure_run_indexes = [
+                    index
+                    for index, (instruction, arguments) in enumerate(instructions)
+                    if instruction == "RUN" and arguments == ENSURE_RUN_ARGUMENTS
+                ]
                 if image["variant"] == "base":
                     self.assertEqual(ensure_indexes, [])
+                    self.assertEqual(ensure_run_indexes, [])
                 else:
                     self.assertEqual(
                         len(ensure_indexes),
                         1,
                         "standalone variants must bootstrap Bubblewrap exactly once",
                     )
-                    ensure_run_indexes = [
-                        index
-                        for index, (instruction, arguments) in enumerate(instructions)
-                        if instruction == "RUN" and arguments == ENSURE_RUN_ARGUMENTS
-                    ]
                     self.assertEqual(len(ensure_run_indexes), 1)
                     self.assertLess(ensure_indexes[0], contract_indexes[0])
                     self.assertLess(ensure_run_indexes[0], contract_indexes[0])
