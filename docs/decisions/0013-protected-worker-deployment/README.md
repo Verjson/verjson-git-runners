@@ -10,12 +10,14 @@ installation and live non-production deployment proof, blocking
 [organization issue #629](https://github.com/Verjson/.github/issues/629).
 The selected DigitalOcean host is Droplet 596126740 in the Development project
 `verjson-ci` under the `verJSON Common` team. Its cloud and OS name is now
-`gha-deployment-canary`, describing its deployment validation purpose.
+`gha-deployment-canary`, describing its deployment validation purpose. A second
+peer host is provisioned in the same project and VPC, but it is not yet a
+registered or admitted runner.
 
 ## Decision
 
-Adopt all ten generated deployment and review-publisher artifacts from
-`Verjson/.github@e044618e2723b6f23c117643b3f2b438bdcee6e6`. Preserve the canonical
+Adopt the generated deployment, transport, and review-publisher artifacts from
+`Verjson/.github@91c12ff5931ab7eb7c9a76276c2cadae5d780174`. Preserve the canonical
 protected-default-branch credential boundary, separate provider and runner-control
 authority, three independent review publishers, immutable release provenance,
 canary-first sequential updates, capacity floor and append-only rollback receipts.
@@ -24,10 +26,13 @@ No consumer exception relaxes those checks.
 Keep this adoption in draft until actual publisher identities, evidence and probe
 adapters, fleet capacity and registration identity satisfy the contract.
 `container-deployment.json` intentionally contains null trust roots and only the
-authorized host; its canonical contract test must fail until onboarding completes.
+currently registered runner; its canonical contract test must fail until onboarding
+completes.
 Do not replace nulls with fixture identities or introduce success-only adapters.
-The adapter credential, dispatch, request and host-evidence transport remains
-blocked by [organization #1281](https://github.com/Verjson/.github/issues/1281);
+The generated broker supplies parent-owned GitHub manifest and probe transport, but
+the host-export capability and controller integration remain blocked by
+[organization #1281](https://github.com/Verjson/.github/issues/1281) and
+[verjson-cli-cloud#504](https://github.com/Verjson/verjson-cli-cloud/issues/504);
 private publisher identities alone cannot make the adopter runnable.
 The intended canary group is the existing restricted `verjson-runner-canary` group;
 the runner's current membership in `DigitalOcean` is an unresolved admission gap.

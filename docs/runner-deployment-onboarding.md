@@ -3,7 +3,9 @@
 Tracked in [#197](https://github.com/Verjson/verjson-git-runners/issues/197).
 This is an incomplete adopter: do not merge or dispatch it until the canonical
 contract test passes with real reviewed inputs. No canary, failure-stop, retry or
-rollback receipt has been produced by this change.
+rollback receipt has been produced by this change. The generated deployment
+artifacts now pin the canonical GitHub transport contract at
+`91c12ff5931ab7eb7c9a76276c2cadae5d780174`.
 
 ## Reviewed target and observed gaps
 
@@ -17,6 +19,7 @@ rollback receipt has been produced by this change.
 | Observed runner group | `DigitalOcean`, group `8` |
 | Intended admission group | Existing `verjson-runner-canary`, group `11`, currently empty |
 | Current image | `ghcr.io/verjson/gha-runner-pwsh@sha256:902d2ec891a7179474b2af4b0504aa389d8f8a2754118d3e2eb29c46f4df4c06` |
+| Provisioned peer host | `gha-deployment-peer`, Droplet `599398725`, `159.203.140.188`, same `verjson-ci` project and `nyc3` VPC; not a registered runner |
 
 The intended group restricts scheduling to the canonical runner-canary workflow at
 `v1.0.1`. Inspect its live workflow policy and resolve an immutable workflow commit
@@ -25,11 +28,12 @@ group but the GitHub control plane still reports group 8; configuration text is 
 admission evidence. Reconcile the registration and container name through the
 controlled runner lifecycle before enabling the reviewed fleet selector.
 
-Only this host is authorized. The generated controller requires
-`minimumAvailable >= 1` and at least one more fleet member than that minimum.
-Obtain explicit authorization for a second existing non-production host and verify
-its project, lane, identity, baseline and group before adding it to the config.
-Do not lower the floor or include unrelated production capacity.
+Only runner `512` on the canary host is currently authorized and registered. The
+peer host is provisioned capacity, not runner or admission evidence. The generated
+controller requires `minimumAvailable >= 1` and at least one more admitted fleet
+member than that minimum. Register and verify the peer's project, lane, identity,
+baseline and group before adding it to the config. Do not lower the floor or include
+unrelated production capacity.
 
 ## Missing trust roots and adapters
 
@@ -78,28 +82,27 @@ deliberately; this draft does not create fake successful evidence. Required work
 
 ### Canonical adapter transport blocker
 
-[Organization #1281](https://github.com/Verjson/.github/issues/1281) blocks #197.
-The installed contract cannot yet supply these capabilities to real adapters:
+[Organization #1281](https://github.com/Verjson/.github/issues/1281) still blocks
+#197. The adopter now includes the generated parent-owned GitHub broker from
+`Verjson/.github@91c12ff5931ab7eb7c9a76276c2cadae5d780174`. It preserves release
+manifest bytes, binds the full probe request and nonce, and validates the exact
+canary run, job and receipt through dedicated short-lived App credentials. The
+broker is a capability boundary; it is not an active adapter and no reusable
+workflow invokes it yet.
 
-- `_child_environment` removes `GH_TOKEN`, `GITHUB_TOKEN` and workflow context
-  from evidence and probe subprocesses. Authenticated asset, artifact and runner
-  reads cannot rely on the parent job's token being available.
-- The only canary admitted by group 11 is a dispatched workflow in
-  `Verjson/.github`, not a reusable workflow. The consumer's repository-scoped
-  `actions: read` job token cannot dispatch it, even if passed to the adapter.
-- The canary requires runner name, ID, unique routing label, transaction nonce,
-  release manifest, variant and image digest. The probe interface supplies only
-  `--runner` and `--timeout-seconds`; a canonical request and receipt transport
-  must bind the remaining identity before an exact-runner proof is possible.
-- Live baseline, drain, lock, tools and runtime health evidence needs a provisioned
-  read-only host transport. The workflow supplies no SSH trust/key or authenticated
-  evidence endpoint. `SSH_AUTH_SOCK` being allowed in a child is not provisioning.
+The declared `evidenceCommand` and `probeCommand` still point at absent
+consumer-owned scripts by design. The broker's `host-export` operation rejects
+before credentials are acquired because the pinned CLI does not provide a
+mutation-free host export. [verjson-cli-cloud#504](https://github.com/Verjson/verjson-cli-cloud/issues/504)
+owns that missing capability. Do not call mutating inventory as dry-run evidence,
+invent host health or capacity facts, or add cached CLI, provider mutation,
+runner-control or fabricated evidence credentials.
 
-The initial evidence call uses `--fleet` for the reviewed selector; capacity and
-post-update calls use the lane. The eventual adapter must resolve this explicitly
-and reject ambiguous configuration. Do not bridge these gaps with cached CLI
-credentials, provider mutation tokens, runner-control tokens or fabricated evidence.
-Publisher identities alone do not unblock adapter execution.
+After #504, the controller must construct the broker request from the admitted
+configuration and retained plan, connect the host exporter and exact-runner probe,
+and preserve `releaseManifestBytes` for baseline verification. Publisher Apps,
+the provisioned peer, and the generated broker alone do not establish deployment
+readiness.
 
 ## Release identity and proof
 
@@ -124,7 +127,7 @@ above still prevent activation.
 
 After the gaps above are resolved, run `bash scripts/container-deployment-contract.test.sh`
 and the pinned controller/preflight/review-producer behavioral suites. Then follow
-the [canonical runbook at the installed pin](https://github.com/Verjson/.github/blob/e044618e2723b6f23c117643b3f2b438bdcee6e6/docs/container-deployment-runbook.md):
+the [canonical runbook at the installed pin](https://github.com/Verjson/.github/blob/91c12ff5931ab7eb7c9a76276c2cadae5d780174/docs/container-deployment-runbook.md):
 produce a mutation-free exact-host dry-run plan, successful canary observation,
 failed-canary stop before a second update, retry/idempotency evidence and a new
 independently admitted rollback to the exact previous manifest/image digest.
