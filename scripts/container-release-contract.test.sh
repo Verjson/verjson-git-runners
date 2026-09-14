@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ref='55576f7cf8659d49aa28b3fca8039b6e05d47231'
-printf '%s  %s\n' '383a56a33feaabf28a67423b29346ad6596d0f7a31386aee6f4c64657d4d0dfe' .github/workflows/container-release.yml | sha256sum --check --strict
+ref='8e67aa60b66df8da17724ab458c58fae2cf58b51'
+printf '%s  %s\n' '8e95ada9b1bd1a88903e352018999211dc98b8cae7de50221dc3360c981e88c8' .github/workflows/container-release.yml | sha256sum --check --strict
 grep -Fq "container-release.yml@$ref" .github/workflows/container-release.yml
 grep -Fq "contract-ref: $ref" .github/workflows/container-release.yml
 grep -q "workflow_dispatch:" .github/workflows/container-release.yml
 ! grep -Eq '^  (push|pull_request):' .github/workflows/container-release.yml
 grep -q 'RELEASE_APP_CLIENT_ID' .github/workflows/container-release.yml
-grep -q 'RELEASE_APP_PRIVATE_KEY' .github/workflows/container-release.yml
+grep -q 'release_environment: release-app' .github/workflows/container-release.yml
+grep -q '^    secrets: inherit$' .github/workflows/container-release.yml
+! grep -Eq 'PRIVATE_KEY' .github/workflows/container-release.yml
 legacy_release_token='RELEASE_'"TOKEN"
 legacy_org_release_token='VERJSON_RELEASE_'"TOKEN"
 ! grep -Eq "$legacy_release_token|$legacy_org_release_token" .github/workflows/container-release.yml
@@ -16,7 +18,7 @@ test -f scripts/container_release_manifest.py
 test -f scripts/container_artifact_extract.py
 test -f scripts/container_attestation_verify.py
 printf '%s  %s\n' 'f4a672502ffb13d83945f473f33de03d9b8fc98ac22a4681739c6856d0194e6a' scripts/container_release_promotion.py | sha256sum --check --strict
-printf '%s  %s\n' '0643fd071364464ab00707a8ceedeb591c1e66300683b0f45824b6e39318b08e' scripts/container_release_manifest.py | sha256sum --check --strict
+printf '%s  %s\n' '93989f1df517562529924d6b9542976865234fda5174ac11fa352331671810d7' scripts/container_release_manifest.py | sha256sum --check --strict
 printf '%s  %s\n' 'f485dcbf63dc15c530399f07cca876f398ab6520e932a2c1eb34deda1fef6748' scripts/container_artifact_extract.py | sha256sum --check --strict
 printf '%s  %s\n' 'b4e4bc5a08ad3e40e430de4d499419d8c91c186ced01d72ab032136eca9a989b' scripts/container_attestation_verify.py | sha256sum --check --strict
 grep -q '^  attestations: write$' .github/workflows/container-release.yml
