@@ -8,9 +8,9 @@ candidate="${root}/.github/workflows/container-candidate.yml"
 release="${root}/.github/workflows/container-release.yml"
 candidate_validator="${root}/scripts/container_candidate_validate.py"
 manifest_validator="${root}/scripts/container_release_manifest.py"
-candidate_contract_ref="55576f7cf8659d49aa28b3fca8039b6e05d47231"
-release_contract_ref="55576f7cf8659d49aa28b3fca8039b6e05d47231"
-changelog_sha256="1d2b6d5ea602347861388ad1e0dda4ee307c1e73e344418ffd9019a462650fb7"
+candidate_contract_ref="8e67aa60b66df8da17724ab458c58fae2cf58b51"
+release_contract_ref="8e67aa60b66df8da17724ab458c58fae2cf58b51"
+changelog_sha256="189247b860a0fbdeffc6aaa5432af0128957549acf69a2e291de82b62ad5515b"
 release_manifest="$(find "${root}/RELEASES/containers" -maxdepth 1 -type f -name 'v*.json' -print | sort -V | tail -n 1)"
 [[ -n "${release_manifest}" ]] || {
   echo "container release workflow contract: no immutable container release manifest exists" >&2
@@ -141,10 +141,14 @@ grep -qx '  packages: write' "${release}" \
   || fail "release caller cannot promote or retain packages with its job token"
 grep -Fq 'release_app_client_id: ${{ vars.RELEASE_APP_CLIENT_ID }}' "${release}" \
   || fail "release caller does not pass the role-based App client ID"
-grep -Fq 'release_app_private_key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}' "${release}" \
-  || fail "release caller does not pass only the role-based App private key"
-! grep -Eq 'secrets: inherit|release-token:' "${release}" \
-  || fail "release caller broadens or restores the legacy release credential"
+grep -Fq 'release_environment: release-app' "${release}" \
+  || fail "release caller does not bind the protected release environment"
+grep -qx '    secrets: inherit' "${release}" \
+  || fail "release caller does not inherit the named protected release secret"
+! grep -Fq 'release_app_private_key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}' "${release}" \
+  || fail "release caller forwards the protected App key as an input"
+! grep -Fq 'release-token:' "${release}" \
+  || fail "release caller restores the legacy release credential"
 [[ -x "${root}/scripts/container_attestation_verify.py" ]] \
   || fail "release caller lacks the generated attestation verifier"
 
