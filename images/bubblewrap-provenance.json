@@ -1,0 +1,17 @@
+{
+  "package": "bubblewrap",
+  "version": "0.11.1-1ubuntu0.1",
+  "binary_path": "/usr/bin/bwrap",
+  "architectures": {
+    "amd64": {
+      "mode": "0755",
+      "owner": "root:root",
+      "package_sha256": "b353088d1003adb3f760deeccfb84c47928a36c8dc102bf680efc94eb19f4408"
+    },
+    "arm64": {
+      "mode": "0755",
+      "owner": "root:root",
+      "package_sha256": "7798d8926cf4c51cfc56187703499d75f7ab66d199a700d1093b45916d7120c0"
+    }
+  }
+}
