@@ -125,6 +125,11 @@ exact signer digest, source ref and exact source digest. This verifies release
 provenance, not canary execution or rollback; #1281 and the onboarding prerequisites
 above still prevent activation.
 
+Because this gate is deliberately fail-closed until those inputs exist, it is wired
+as the **last** step of the `shell-tests` job; `tests/deployment_gate_ordering_test.py`
+keeps it there so a pending readiness failure never aborts the job before the other
+contract tests report.
+
 After the gaps above are resolved, run `bash scripts/container-deployment-contract.test.sh`
 and the pinned controller/preflight/review-producer behavioral suites. Then follow
 the [canonical runbook at the installed pin](https://github.com/Verjson/.github/blob/3af4580b7d345602891fea91c2684b3bb7892c36/docs/container-deployment-runbook.md):
