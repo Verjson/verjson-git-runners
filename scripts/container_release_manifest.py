@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # GENERATED FILE — do not edit by hand.
-# Contract: 8e67aa60b66df8da17724ab458c58fae2cf58b51
-# Source: Verjson/.github/scripts/container_release_manifest.py@8e67aa60b66df8da17724ab458c58fae2cf58b51
+# Contract: 3b83ddeaa421e60005e15d36e946e2f83832bacb
+# Source: Verjson/.github/scripts/container_release_manifest.py@3b83ddeaa421e60005e15d36e946e2f83832bacb
 
 import argparse
 import json
