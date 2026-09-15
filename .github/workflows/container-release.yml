@@ -13,13 +13,13 @@ permissions:
   packages: write
 jobs:
   release:
-    uses: Verjson/.github/.github/workflows/container-release.yml@8e67aa60b66df8da17724ab458c58fae2cf58b51
+    uses: Verjson/.github/.github/workflows/container-release.yml@3b83ddeaa421e60005e15d36e946e2f83832bacb
     secrets: inherit
     with:
       version: ${{ inputs.version }}
       candidate-manifest: ${{ inputs.candidate-manifest }}
       config-path: container-candidate.json
-      contract-ref: 8e67aa60b66df8da17724ab458c58fae2cf58b51
+      contract-ref: 3b83ddeaa421e60005e15d36e946e2f83832bacb
       reconcile-allowlist: '["images/rust.Dockerfile","images/node.Dockerfile","images/python.Dockerfile","images/go.Dockerfile","Dockerfile.pwsh","README.md"]'
       release_app_client_id: ${{ vars.RELEASE_APP_CLIENT_ID }}
       release_environment: release-app
