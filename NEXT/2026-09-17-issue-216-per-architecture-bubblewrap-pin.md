@@ -61,9 +61,12 @@ carry it, and none of them is a person remembering:
    version differs from its architecture's provenance record — so a build against a stale
    pin cannot publish. A record that is missing, has no `version`, or carries anything but an
    exact version string is rejected outright; there is no permissive path.
-3. *Drift is detected before it reaches a release.* The pull-request leg is amd64-only, which
-   is why this divergence reached `main` unseen; the weekly cold `image-build-check` arm64
-   job (`CACHE_READ: off`) is what closes that window, and it is now the check that catches a
+3. *Drift is detected before it reaches a release.* The pull-request leg does build both
+   architectures, so architecture coverage is not what this divergence slipped through: those
+   builds read the shared layer cache, which turns the download-and-checksum layer into a hit
+   whenever the Dockerfile is byte-identical, so an archive move under an unchanged pin is
+   never re-fetched. The weekly `image-build-check` arm64 job is cold on purpose
+   (`CACHE_READ: off`) and is what closes that window, and it is now the check that catches a
    one-architecture archive move.
 
 Verified against the real archive and real builds, not only against the unit suite: the

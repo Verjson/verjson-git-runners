@@ -413,9 +413,28 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         ):
             self.verify()
 
+    def test_rejects_an_architecture_record_carrying_an_unreviewed_field(self) -> None:
+        # The key set is compared exactly, not as a subset: a field the contract
+        # does not know about is an unreviewed claim about the package, and
+        # accepting it silently is how one would be introduced.
+        self.write_provenance()
+        path = self.root / "etc" / CONTRACT.BUBBLEWRAP_PROVENANCE_NAME
+        provenance = json.loads(path.read_text(encoding="utf-8"))
+        provenance["architectures"][self.architecture]["source"] = "unreviewed"
+        path.chmod(0o644)
+        path.write_text(json.dumps(provenance) + "\n", encoding="utf-8")
+        path.chmod(0o444)
+
+        with self.assertRaisesRegex(
+            CONTRACT.ContractError, "no exact architecture record"
+        ):
+            self.verify()
+
     def test_rejects_architecture_record_with_a_floating_version(self) -> None:
         # The anchor is forged to agree, so only the exact-version shape can reject these.
-        for floating in ("", "*", "0.11.1-1ubuntu0.*", "latest "):
+        # "latest" carries no digit at all yet matched the original shape, so a
+        # record naming a moving target read as exact.
+        for floating in ("", "*", "0.11.1-1ubuntu0.*", "latest ", "latest"):
             with self.subTest(version=floating):
                 self.write_provenance(version=floating)
                 self.rewrite_anchor(version=floating)

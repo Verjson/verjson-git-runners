@@ -17,7 +17,7 @@ BUBBLEWRAP_PACKAGE = "bubblewrap"
 # Ubuntu publishes each architecture independently, so the exact version pin lives in the
 # per-architecture provenance record rather than in one shared constant. A record that is
 # missing, malformed, or disagrees with the installed APT anchor still refuses to publish.
-BUBBLEWRAP_VERSION_PATTERN = re.compile(r"[A-Za-z0-9.+~:-]+")
+BUBBLEWRAP_VERSION_PATTERN = re.compile(r"[0-9][A-Za-z0-9.+~:-]*")
 BUBBLEWRAP_PROVENANCE_PATH = "/etc/verjson-bubblewrap-provenance.json"
 BUBBLEWRAP_PROVENANCE_NAME = Path(BUBBLEWRAP_PROVENANCE_PATH).name
 BUBBLEWRAP_PACKAGE_ARCHIVE_NAME = "verjson-bubblewrap.deb"

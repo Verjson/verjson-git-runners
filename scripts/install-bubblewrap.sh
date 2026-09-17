@@ -27,7 +27,7 @@ record = pin.get("architectures", {}).get(architecture)
 if not isinstance(record, dict):
     raise SystemExit(f"{path}: no Bubblewrap pin for architecture {architecture}")
 version = record.get("version")
-if not isinstance(version, str) or not re.fullmatch(r"[A-Za-z0-9.+~:-]+", version):
+if not isinstance(version, str) or not re.fullmatch(r"[0-9][A-Za-z0-9.+~:-]*", version):
     raise SystemExit(f"{path}: Bubblewrap pin for {architecture} has no exact version")
 print(version)
 PY
