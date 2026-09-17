@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 import re
 import unittest
 from pathlib import Path
@@ -7,11 +8,13 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 # This repository is on three contracts at once, so one `CONTRACT` constant
 # cannot describe it and a test built on one silently asserts the wrong thing
-# about two of them. Name each family's pin separately; a family that moves
-# then fails here loudly instead of borrowing a sibling's SHA.
-AI_CALLER_CONTRACT = 'aecfb93232db21c708ffee4b07da55d95b3a79f2'
-GENERATED_ARTIFACTS_CONTRACT = '55576f7cf8659d49aa28b3fca8039b6e05d47231'
-CONTAINER_CONTRACT = '3b83ddeaa421e60005e15d36e946e2f83832bacb'
+# about two of them. The pins live in tests/contract_pins.json so that the shell
+# contract test reads the same values; a second copy is how this repository last
+# asserted the wrong contract.
+_PINS = json.loads((ROOT / 'tests/contract_pins.json').read_text())
+AI_CALLER_CONTRACT = _PINS['ai-callers']
+GENERATED_ARTIFACTS_CONTRACT = _PINS['generated-artifacts']
+CONTAINER_CONTRACT = _PINS['containers']
 
 
 class ReviewCallerTest(unittest.TestCase):

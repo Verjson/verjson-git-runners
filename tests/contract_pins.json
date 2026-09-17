@@ -1,0 +1,6 @@
+{
+  "_comment": "Every Verjson/.github contract SHA this repository pins, named by family. This repository is on three contracts at once; a test that keeps its own copy of one of these has already asserted the wrong contract once. Both tests/ai_review_caller_test.py and tests/privileged_merge_caller_contract_test.sh read this file, so repinning a family is one edit and no test can silently disagree with another.",
+  "ai-callers": "aecfb93232db21c708ffee4b07da55d95b3a79f2",
+  "generated-artifacts": "55576f7cf8659d49aa28b3fca8039b6e05d47231",
+  "containers": "3b83ddeaa421e60005e15d36e946e2f83832bacb"
+}
