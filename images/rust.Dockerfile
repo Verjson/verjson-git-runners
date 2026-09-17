@@ -4,11 +4,15 @@
 ARG VERJSON_BASE_IMAGE=ghcr.io/verjson/gha-runner@sha256:3af0d4949ae7d1282be0cd7bcad0b8f0e5283dacaec014c536ca0ee2c808e7bb
 FROM ${VERJSON_BASE_IMAGE}
 
+# The base image carries the pin descriptor it was built from; copy this checkout's in
+# so a variant bootstraps the exact per-architecture version this source tree pins.
+COPY --chmod=0444 images/bubblewrap-provenance.json /usr/local/share/verjson-bubblewrap-pin.json
 COPY --chmod=0555 scripts/ensure-bubblewrap.sh /usr/local/bin/ensure-bubblewrap
 COPY --chmod=0555 scripts/install-bubblewrap.sh /usr/local/bin/install-bubblewrap
 USER root
 RUN ["/usr/local/bin/ensure-bubblewrap"]
-RUN rm -f /usr/local/bin/ensure-bubblewrap /usr/local/bin/install-bubblewrap
+RUN rm -f /usr/local/bin/ensure-bubblewrap /usr/local/bin/install-bubblewrap \
+      /usr/local/share/verjson-bubblewrap-pin.json
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential pkg-config libssl-dev \

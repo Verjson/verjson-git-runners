@@ -15,7 +15,6 @@ ARG GH_SHA256_ARM64=06f86ec7103d41993b76cd78072f43595c34aaa56506d971d9860e67140b
 ARG NODE_VERSION=24.18.0
 ARG NODE_SHA256_AMD64=55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742
 ARG NODE_SHA256_ARM64=58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe7105886f6
-ARG BUBBLEWRAP_VERSION=0.11.1-1ubuntu0.1
 ARG TARGETARCH
 ENV DEBIAN_FRONTEND=noninteractive
 ENV VERJSON_CHANGELOG_TOOL_CACHE=/opt/verjson/changelog-tools
@@ -29,14 +28,21 @@ ENV VERJSON_CHANGELOG_TOOL_CACHE=/opt/verjson/changelog-tools
 # Nothing this fleet builds today needs a cmake-js source build, and cmake-js downloads
 # its own CMake when it does; add the package (a further 96 MB) when a real consumer
 # proves that download unreliable, not before.
-COPY --chmod=0555 scripts/install-bubblewrap.sh /usr/local/bin/install-bubblewrap
-RUN BUBBLEWRAP_VERSION="${BUBBLEWRAP_VERSION}" /usr/local/bin/install-bubblewrap \
-    && rm -f /usr/local/bin/install-bubblewrap
 RUN apt-get update && apt-get install -y --no-install-recommends \
       bash build-essential ca-certificates coreutils curl diffutils findutils \
       gawk git grep gzip jq pkg-config python3 python3-yaml sed shellcheck sudo tar \
       unzip xz-utils zstd \
     && rm -rf /var/lib/apt/lists/*
+
+# Installed after python3 above, which the installer needs to read its exact
+# per-architecture pin out of the descriptor below. That descriptor is the same file the
+# immutable provenance is copied from at the end of this build, so the version the
+# installer fetches and the version the final contract verifies cannot drift apart.
+# The build-time copy is scaffolding and is removed with the installer.
+COPY --chmod=0444 images/bubblewrap-provenance.json /usr/local/share/verjson-bubblewrap-pin.json
+COPY --chmod=0555 scripts/install-bubblewrap.sh /usr/local/bin/install-bubblewrap
+RUN /usr/local/bin/install-bubblewrap \
+    && rm -f /usr/local/bin/install-bubblewrap /usr/local/share/verjson-bubblewrap-pin.json
 
 COPY --chmod=0555 scripts/changelog-tool-cache.sh /usr/local/bin/changelog-tool-cache
 COPY --chmod=0444 images/changelog-tools.manifest /usr/local/share/verjson-changelog-tools.manifest

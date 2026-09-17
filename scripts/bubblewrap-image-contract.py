@@ -14,7 +14,10 @@ from pathlib import Path
 
 MINIMUM_VERSION = (0, 9, 0)
 BUBBLEWRAP_PACKAGE = "bubblewrap"
-BUBBLEWRAP_PACKAGE_VERSION = "0.11.1-1ubuntu0.1"
+# Ubuntu publishes each architecture independently, so the exact version pin lives in the
+# per-architecture provenance record rather than in one shared constant. A record that is
+# missing, malformed, or disagrees with the installed APT anchor still refuses to publish.
+BUBBLEWRAP_VERSION_PATTERN = re.compile(r"[A-Za-z0-9.+~:-]+")
 BUBBLEWRAP_PROVENANCE_PATH = "/etc/verjson-bubblewrap-provenance.json"
 BUBBLEWRAP_PROVENANCE_NAME = Path(BUBBLEWRAP_PROVENANCE_PATH).name
 BUBBLEWRAP_PACKAGE_ARCHIVE_NAME = "verjson-bubblewrap.deb"
@@ -170,7 +173,9 @@ def _package_binary_hash(package_archive_fd: int) -> str:
         raise ContractError("Bubblewrap package archive filesystem is unreadable") from error
 
 
-def _read_package_anchor(anchor_fd: int, metadata: os.stat_result, architecture: str) -> str:
+def _read_package_anchor(
+    anchor_fd: int, metadata: os.stat_result, architecture: str, version: str
+) -> str:
     if metadata.st_size > 16 * 1024:
         raise ContractError("Bubblewrap package checksum anchor is too large")
     try:
@@ -183,7 +188,7 @@ def _read_package_anchor(anchor_fd: int, metadata: os.stat_result, architecture:
     checksum = anchor["sha256"]
     if (
         anchor["package"] != BUBBLEWRAP_PACKAGE
-        or anchor["version"] != BUBBLEWRAP_PACKAGE_VERSION
+        or anchor["version"] != version
         or anchor["architecture"] != architecture
         or not isinstance(checksum, str)
         or not re.fullmatch(r"[0-9a-f]{64}", checksum)
@@ -223,11 +228,10 @@ def _verify_bubblewrap_package(
     bubblewrap_metadata: os.stat_result,
 ) -> None:
     provenance = _read_provenance(provenance_fd, provenance_metadata)
-    if set(provenance) != {"package", "version", "binary_path", "architectures"}:
+    if set(provenance) != {"package", "binary_path", "architectures"}:
         raise ContractError("Bubblewrap package provenance is invalid")
     if (
         provenance["package"] != BUBBLEWRAP_PACKAGE
-        or provenance["version"] != BUBBLEWRAP_PACKAGE_VERSION
         or provenance["binary_path"] != "/usr/bin/bwrap"
         or not isinstance(provenance["architectures"], dict)
     ):
@@ -235,12 +239,20 @@ def _verify_bubblewrap_package(
 
     architecture = _host_architecture()
     record = provenance["architectures"].get(architecture)
-    if not isinstance(record, dict) or set(record) != {"mode", "owner", "package_sha256"}:
+    if not isinstance(record, dict) or set(record) != {
+        "version",
+        "mode",
+        "owner",
+        "package_sha256",
+    }:
         raise ContractError("Bubblewrap package provenance has no exact architecture record")
+    version = record["version"]
     mode = record["mode"]
     package_sha256 = record["package_sha256"]
     if (
         record["owner"] != "root:root"
+        or not isinstance(version, str)
+        or not BUBBLEWRAP_VERSION_PATTERN.fullmatch(version)
         or not isinstance(mode, str)
         or mode != "0755"
         or not isinstance(package_sha256, str)
@@ -248,7 +260,7 @@ def _verify_bubblewrap_package(
     ):
         raise ContractError("Bubblewrap package provenance is invalid")
 
-    anchor_sha256 = _read_package_anchor(anchor_fd, anchor_metadata, architecture)
+    anchor_sha256 = _read_package_anchor(anchor_fd, anchor_metadata, architecture, version)
     if anchor_sha256 != package_sha256:
         raise ContractError("Bubblewrap package checksum anchor differs from immutable provenance")
     if _hash_fd(package_archive_fd, "Bubblewrap package archive") != package_sha256:

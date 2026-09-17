@@ -23,9 +23,17 @@ ENSURE_COPY_ARGUMENTS = '--chmod=0555 scripts/ensure-bubblewrap.sh /usr/local/bi
 ENSURE_RUN_ARGUMENTS = '["/usr/local/bin/ensure-bubblewrap"]'
 HELPER_COPY_ARGUMENTS = '--chmod=0555 scripts/bubblewrap-image-contract.py /usr/local/bin/bubblewrap-image-contract'
 PROVENANCE_COPY_ARGUMENTS = '--chmod=0444 images/bubblewrap-provenance.json /etc/verjson-bubblewrap-provenance.json'
+PIN_COPY_ARGUMENTS = '--chmod=0444 images/bubblewrap-provenance.json /usr/local/share/verjson-bubblewrap-pin.json'
 PACKAGE_ARCHIVE_PATH = '/etc/verjson-bubblewrap.deb'
 ROOT_USER_ARGUMENTS = "root"
-BUBBLEWRAP_PACKAGE_VERSION = "0.11.1-1ubuntu0.1"
+PIN_PATH = "/usr/local/share/verjson-bubblewrap-pin.json"
+# The behavioral fixtures build their own package, so their version is arbitrary; the
+# contract must take it from the provenance record rather than from a shared constant.
+FIXTURE_PACKAGE_VERSION = "0.11.1-1ubuntu0.2"
+BUBBLEWRAP_PACKAGE_VERSIONS = {
+    "amd64": "0.11.1-1ubuntu0.2",
+    "arm64": "0.11.1-1ubuntu0.2",
+}
 HEREDOC = re.compile(r"<<(-?)(?:'([^']+)'|\"([^\"]+)\"|([A-Za-z0-9_.-]+))")
 
 
@@ -69,6 +77,13 @@ def dockerfile_instructions(dockerfile: str) -> list[tuple[str, str]]:
     if heredocs:
         raise AssertionError("unterminated Dockerfile heredoc")
     return instructions
+
+
+def pin_resolver_block(script: str) -> str:
+    match = re.search(
+        r"BUBBLEWRAP_VERSION=\"\$\(\n(.*?)\n\)\"", script, re.DOTALL
+    )
+    return match.group(1) if match else ""
 
 
 def assert_final_contract(
@@ -165,7 +180,7 @@ class BubblewrapBehaviorTest(unittest.TestCase):
             "Package: bubblewrap\n"
             "Status: install ok installed\n"
             "Architecture: amd64\n"
-            f"Version: {CONTRACT.BUBBLEWRAP_PACKAGE_VERSION}\n"
+            f"Version: {FIXTURE_PACKAGE_VERSION}\n"
             "Maintainer: Bubblewrap Test <test@example.invalid>\n"
             "Description: test Bubblewrap package\n\n",
             encoding="utf-8",
@@ -188,7 +203,7 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         (data_root / "bwrap").write_bytes((self.bin / "bwrap").read_bytes())
         (control_root / "control").write_text(
             "Package: bubblewrap\n"
-            f"Version: {CONTRACT.BUBBLEWRAP_PACKAGE_VERSION}\n"
+            f"Version: {FIXTURE_PACKAGE_VERSION}\n"
             f"Architecture: {self.architecture}\n"
             "Maintainer: Bubblewrap Test <test@example.invalid>\n"
             "Description: test Bubblewrap package\n",
@@ -214,7 +229,7 @@ class BubblewrapBehaviorTest(unittest.TestCase):
             json.dumps(
                 {
                     "package": CONTRACT.BUBBLEWRAP_PACKAGE,
-                    "version": CONTRACT.BUBBLEWRAP_PACKAGE_VERSION,
+                    "version": FIXTURE_PACKAGE_VERSION,
                     "architecture": self.architecture,
                     "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
                 }
@@ -228,7 +243,7 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         self,
         *,
         package: str = CONTRACT.BUBBLEWRAP_PACKAGE,
-        version: str = CONTRACT.BUBBLEWRAP_PACKAGE_VERSION,
+        version: str = FIXTURE_PACKAGE_VERSION,
         binary_path: str = "/usr/bin/bwrap",
         architecture: str | None = None,
         mode: str = "0755",
@@ -240,20 +255,16 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         etc.chmod(0o755)
         provenance = {
             "package": package,
-            "version": version,
             "binary_path": binary_path,
             "architectures": {
-                    architecture or self.architecture: {
-                        "mode": mode,
-                        "owner": owner,
-                        "package_sha256": package_sha256
-                        or hashlib.sha256(
-                            (
-                                self.root
-                                / "etc"
-                                / "verjson-bubblewrap.deb"
-                            ).read_bytes()
-                        ).hexdigest(),
+                architecture or self.architecture: {
+                    "version": version,
+                    "mode": mode,
+                    "owner": owner,
+                    "package_sha256": package_sha256
+                    or hashlib.sha256(
+                        (self.root / "etc" / "verjson-bubblewrap.deb").read_bytes()
+                    ).hexdigest(),
                 }
             },
         }
@@ -262,6 +273,14 @@ class BubblewrapBehaviorTest(unittest.TestCase):
             path.chmod(0o644)
         path.write_text(json.dumps(provenance) + "\n", encoding="utf-8")
         path.chmod(0o444)
+
+    def rewrite_anchor(self, **fields: object) -> None:
+        anchor = self.root / "etc" / CONTRACT.BUBBLEWRAP_PACKAGE_ANCHOR_NAME
+        payload = json.loads(anchor.read_text(encoding="utf-8"))
+        payload.update(fields)
+        anchor.chmod(0o644)
+        anchor.write_text(json.dumps(payload), encoding="utf-8")
+        anchor.chmod(0o444)
 
     def refresh_package_hash(self) -> None:
         digest = hashlib.md5((self.bin / "bwrap").read_bytes()).hexdigest()
@@ -327,7 +346,7 @@ class BubblewrapBehaviorTest(unittest.TestCase):
             "Package: bubblewrap\n"
             "Status: install ok installed\n"
             "Architecture: amd64\n"
-            f"Version: {CONTRACT.BUBBLEWRAP_PACKAGE_VERSION}\n\n",
+            f"Version: {FIXTURE_PACKAGE_VERSION}\n\n",
             encoding="utf-8",
         )
         (package_root / "info" / "bubblewrap.list").write_text(
@@ -374,6 +393,36 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         archive.chmod(0o444)
         with self.assertRaisesRegex(CONTRACT.ContractError, "package archive failed"):
             self.verify()
+
+    def test_rejects_anchor_installed_from_a_different_architecture_pin(self) -> None:
+        # The archive moved one architecture ahead: the image installed 0.11.1-1ubuntu0.2
+        # while this architecture's provenance record still pins 0.11.1-1ubuntu0.1.
+        self.write_provenance(version="0.11.1-1ubuntu0.1")
+        with self.assertRaisesRegex(CONTRACT.ContractError, "checksum anchor is invalid"):
+            self.verify()
+
+    def test_rejects_architecture_record_without_a_version(self) -> None:
+        provenance_path = self.root / "etc" / CONTRACT.BUBBLEWRAP_PROVENANCE_NAME
+        payload = json.loads(provenance_path.read_text(encoding="utf-8"))
+        del payload["architectures"][self.architecture]["version"]
+        provenance_path.chmod(0o644)
+        provenance_path.write_text(json.dumps(payload), encoding="utf-8")
+        provenance_path.chmod(0o444)
+        with self.assertRaisesRegex(
+            CONTRACT.ContractError, "no exact architecture record"
+        ):
+            self.verify()
+
+    def test_rejects_architecture_record_with_a_floating_version(self) -> None:
+        # The anchor is forged to agree, so only the exact-version shape can reject these.
+        for floating in ("", "*", "0.11.1-1ubuntu0.*", "latest "):
+            with self.subTest(version=floating):
+                self.write_provenance(version=floating)
+                self.rewrite_anchor(version=floating)
+                with self.assertRaisesRegex(
+                    CONTRACT.ContractError, "provenance is invalid"
+                ):
+                    self.verify()
 
     def test_rejects_package_anchor_different_from_immutable_provenance(self) -> None:
         anchor = self.root / "etc" / CONTRACT.BUBBLEWRAP_PACKAGE_ANCHOR_NAME
@@ -479,29 +528,44 @@ class BubblewrapBehaviorTest(unittest.TestCase):
 
 
 class PublishedImageContractTest(unittest.TestCase):
+    def test_bubblewrap_pin_is_exact_and_per_architecture(self) -> None:
+        provenance = json.loads(
+            (ROOT / "images/bubblewrap-provenance.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            set(provenance),
+            {"package", "binary_path", "architectures"},
+            "one shared version cannot pin an archive that diverges by architecture",
+        )
+        self.assertEqual(set(provenance["architectures"]), {"amd64", "arm64"})
+        for architecture, record in provenance["architectures"].items():
+            with self.subTest(architecture=architecture):
+                self.assertEqual(
+                    set(record), {"version", "mode", "owner", "package_sha256"}
+                )
+                self.assertEqual(
+                    record["version"],
+                    BUBBLEWRAP_PACKAGE_VERSIONS[architecture],
+                )
+                self.assertRegex(record["package_sha256"], r"\A[0-9a-f]{64}\Z")
+
     def test_bubblewrap_install_is_exactly_version_pinned(self) -> None:
         base = (ROOT / "images/base.Dockerfile").read_text(encoding="utf-8")
         bootstrap = (ROOT / "scripts/ensure-bubblewrap.sh").read_text(encoding="utf-8")
         installer = (ROOT / "scripts/install-bubblewrap.sh").read_text(encoding="utf-8")
-        provenance = json.loads(
-            (ROOT / "images/bubblewrap-provenance.json").read_text(encoding="utf-8")
-        )
-        self.assertIn(
-            f"ARG BUBBLEWRAP_VERSION={BUBBLEWRAP_PACKAGE_VERSION}",
+        self.assertNotIn(
+            "BUBBLEWRAP_VERSION=0.11",
             base,
+            "a build argument cannot carry a version that differs by architecture",
         )
         self.assertIn(
             'COPY --chmod=0555 scripts/install-bubblewrap.sh /usr/local/bin/install-bubblewrap',
             base,
         )
-        self.assertIn(
-            'RUN BUBBLEWRAP_VERSION="${BUBBLEWRAP_VERSION}" /usr/local/bin/install-bubblewrap',
-            base,
-        )
-        self.assertIn(
-            f'BUBBLEWRAP_VERSION="${{BUBBLEWRAP_VERSION:-{BUBBLEWRAP_PACKAGE_VERSION}}}"',
-            bootstrap,
-        )
+        self.assertIn("RUN /usr/local/bin/install-bubblewrap", base)
+        for script in (installer, bootstrap):
+            self.assertIn('BUBBLEWRAP_PIN_PATH:-' + PIN_PATH, script)
+            self.assertIn('architecture="$(dpkg --print-architecture)"', script)
         self.assertIn('apt-cache show "bubblewrap=${BUBBLEWRAP_VERSION}"', installer)
         self.assertIn('sha256sum -c -', installer)
         self.assertIn('apt-get install -y --no-install-recommends "$package_archive"', installer)
@@ -516,13 +580,47 @@ class PublishedImageContractTest(unittest.TestCase):
         )
         self.assertIn('apt-get download "bubblewrap=${BUBBLEWRAP_VERSION}"', installer)
         self.assertIn('/etc/verjson-bubblewrap.deb', bootstrap)
-        self.assertEqual(provenance["package"], "bubblewrap")
-        self.assertEqual(provenance["version"], BUBBLEWRAP_PACKAGE_VERSION)
-        self.assertEqual(provenance["binary_path"], "/usr/bin/bwrap")
-        self.assertEqual(set(provenance["architectures"]), {"amd64", "arm64"})
-        for record in provenance["architectures"].values():
-            self.assertEqual(set(record), {"mode", "owner", "package_sha256"})
-            self.assertRegex(record["package_sha256"], r"[0-9a-f]{64}")
+
+    def test_both_bubblewrap_scripts_resolve_the_pin_identically(self) -> None:
+        resolvers = [
+            pin_resolver_block((ROOT / name).read_text(encoding="utf-8"))
+            for name in ("scripts/install-bubblewrap.sh", "scripts/ensure-bubblewrap.sh")
+        ]
+        self.assertTrue(all(resolvers), "both scripts must resolve the pin per architecture")
+        self.assertEqual(
+            resolvers[0],
+            resolvers[1],
+            "the installer and the bootstrap must not drift on how the pin is resolved",
+        )
+
+    def test_pin_descriptor_is_scaffolding_removed_before_the_final_contract(self) -> None:
+        config = json.loads((ROOT / "container-candidate.json").read_text(encoding="utf-8"))
+        for image in config["images"]:
+            with self.subTest(variant=image["variant"]):
+                dockerfile = (ROOT / image["file"]).read_text(encoding="utf-8")
+                instructions = dockerfile_instructions(dockerfile)
+                pin_indexes = [
+                    index
+                    for index, (instruction, arguments) in enumerate(instructions)
+                    if instruction == "COPY" and arguments == PIN_COPY_ARGUMENTS
+                ]
+                self.assertEqual(
+                    len(pin_indexes), 1, "the build-time pin is copied exactly once"
+                )
+                removals = [
+                    index
+                    for index, (instruction, arguments) in enumerate(instructions)
+                    if instruction == "RUN" and PIN_PATH in arguments and "rm -f" in arguments
+                ]
+                self.assertEqual(
+                    len(removals), 1, "the build-time pin must be removed exactly once"
+                )
+                self.assertLess(pin_indexes[0], removals[0])
+                self.assertNotIn(
+                    ("COPY", PIN_COPY_ARGUMENTS),
+                    instructions[removals[0] + 1 :],
+                    "the build-time pin must not outlive the Bubblewrap bootstrap",
+                )
 
     def test_every_published_variant_and_architecture_runs_final_contract(self) -> None:
         config = json.loads((ROOT / "container-candidate.json").read_text(encoding="utf-8"))
