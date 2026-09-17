@@ -38,6 +38,8 @@ jobs:
         run: bash tests/image_build_check_workflow_test.sh
       - name: Validate standard image Bubblewrap contract
         run: python3 tests/bubblewrap_image_contract_test.py
+      - name: Validate delivered lane Bubblewrap conformance probe
+        run: bash tests/lane_conformance_workflow_test.sh
       - name: Validate read-only cache inventory measurement
         run: bash tests/cache_inventory_test.sh
       - name: Validate fail-closed GHCR retention policy
