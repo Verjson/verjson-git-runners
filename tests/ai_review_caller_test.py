@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import hashlib
 import json
 import re
 import unittest
@@ -15,6 +16,18 @@ _PINS = json.loads((ROOT / 'tests/contract_pins.json').read_text())
 AI_CALLER_CONTRACT = _PINS['ai-callers']
 GENERATED_ARTIFACTS_CONTRACT = _PINS['generated-artifacts']
 CONTAINER_CONTRACT = _PINS['containers']
+
+# Under `secrets: inherit` the caller names no secret, so nothing in its text
+# bounds what it hands the callee. Byte identity is what is left: these are
+# generated files, and a digest change means the generator's output changed or
+# somebody hand-edited a privileged caller. The privileged-merge pair is pinned
+# the same way in tests/privileged_merge_caller_contract_test.sh.
+GENERATED_CALLER_DIGESTS = {
+    '.github/workflows/ai-review-merge.yml':
+        '3f084d6f1f8b29de4a861ab48fac786cfa16833b05bd5f0f8b79d9d85c1b8aa2',
+    '.github/workflows/ai-review-label-rearm.yml':
+        'f9f3a3c30b6e2b79760e02664342bcdca00b16dcd13234b5c66bd14ccb5fa453',
+}
 
 
 class ReviewCallerTest(unittest.TestCase):
@@ -52,11 +65,25 @@ class ReviewCallerTest(unittest.TestCase):
             'container-candidate-publish.yml': CONTAINER_CONTRACT,
             'container-release.yml': CONTAINER_CONTRACT,
         }
+        # A narrow callee pattern does not fail on a name it cannot match — it
+        # skips it, so a caller named outside the pattern escapes the whole
+        # check silently. Match permissively, then assert that every reference
+        # to a hub workflow in the tree was one this pattern consumed.
         pattern = re.compile(
-            r'Verjson/\.github/\.github/workflows/([a-z-]+\.yml)@([0-9a-f]{40})')
+            r'Verjson/\.github/\.github/workflows/([A-Za-z0-9._-]+\.ya?ml)@([0-9a-f]{40})')
+        any_reference = re.compile(r'Verjson/\.github/\.github/workflows/\S+')
         seen = set()
-        for path in sorted((ROOT / '.github/workflows').glob('*.yml')):
-            for callee, sha in pattern.findall(path.read_text()):
+        for path in sorted((ROOT / '.github/workflows').glob('*.y*ml')):
+            text = path.read_text()
+            matched = {m.group(0) for m in pattern.finditer(text)}
+            for reference in any_reference.findall(text):
+                reference = reference.rstrip("'\",")
+                self.assertTrue(
+                    any(reference.startswith(m) or m.startswith(reference)
+                        for m in matched),
+                    f'{path.name} references {reference}, which is not a '
+                    'pinned hub caller this test can check')
+            for callee, sha in pattern.findall(text):
                 seen.add(callee)
                 self.assertIn(callee, families,
                               f'{path.name} calls unregistered {callee}@{sha}')
@@ -65,6 +92,16 @@ class ReviewCallerTest(unittest.TestCase):
                     f'{path.name} pins {callee} outside its declared family')
         self.assertEqual(seen, set(families),
                          'the family map lists a callee nothing invokes')
+
+    def test_generated_ai_review_callers_are_byte_pinned(self):
+        """A privileged caller cannot change without this test saying so."""
+        for relative, expected in GENERATED_CALLER_DIGESTS.items():
+            with self.subTest(caller=relative):
+                digest = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+                self.assertEqual(
+                    expected, digest,
+                    f'{relative} changed; regenerate it with the canonical '
+                    'generator and repin this digest deliberately')
 
 
 if __name__ == '__main__':

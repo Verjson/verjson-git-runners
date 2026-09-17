@@ -51,10 +51,9 @@ assert retry["jobs"]["retry"]["uses"] == (
     f"Verjson/.github/.github/workflows/ai-promotion-retry.yml@{contract}"
 )
 # Custody moved into the callee under ADR 0166/0180: the merge App private key
-# is an environment secret of `merge-app`, not a repository secret, so a caller
-# cannot name it in `secrets:` at all — it is not in scope where the caller
-# runs. The control that replaced the explicit grant is the environment
-# binding, so assert that instead of asserting the grant is gone.
+# is resolved from the `merge-app` environment by the callee job, so the caller
+# has no scope in which to name it. The control that replaced the explicit
+# grant is the environment binding, so assert that.
 assert primary["jobs"]["privileged_merge"]["secrets"] == "inherit"
 assert retry["jobs"]["retry"]["secrets"] == "inherit"
 assert primary["jobs"]["privileged_merge"]["with"]["merge_environment"] == "merge-app"
@@ -62,6 +61,12 @@ assert retry["jobs"]["retry"]["with"]["merge_environment"] == "merge-app"
 assert json.loads(primary["jobs"]["privileged_merge"]["with"]["required_checks"]) == required_checks
 assert json.loads(retry["jobs"]["retry"]["with"]["required_checks"]) == required_checks
 for workflow, source in ((primary, primary_text), (retry, retry_text)):
+    # `secrets: inherit` hands the callee every organization secret without
+    # the caller naming one, so no string assertion over this file can bound
+    # what it grants. The sha256 digests above are that control now: these are
+    # generated files, and a digest change means the generator's output changed
+    # or somebody hand-edited a privileged caller. The two checks below are
+    # cosmetic — they catch a hand-added secret block, nothing more.
     assert "ORG_ADMIN_TOKEN" not in source
     assert "MERGE_APP_PRIVATE_KEY" not in source
     assert "generated-artifacts / validate" not in source
