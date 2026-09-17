@@ -1,6 +1,6 @@
 # GENERATED FILE — do not edit by hand.
 # Regenerate with:
-#   scripts/gen-privileged-merge-caller.sh 6462e0cc72f4d96baa4f8ff8a862db4af0f93db7 --retry \[\"generated\ artifacts\"\,\"image\ build\ check\"\,\"test\"\] \[\{\"name\":\"shell-tests\"\,\"app_id\":15368\,\"workflow_id\":319611670\,\"workflow_path\":\".github/workflows/test.yml\"\}\,\{\"name\":\"changelog\ /\ validate\"\,\"app_id\":15368\,\"workflow_id\":325336751\,\"workflow_path\":\".github/workflows/changelog.yml\"\}\] > .github/workflows/ai-promotion-retry.yml
+#   scripts/gen-privileged-merge-caller.sh aecfb93232db21c708ffee4b07da55d95b3a79f2 --retry \[\"generated\ artifacts\"\,\"image\ build\ check\"\,\"test\"\] \[\{\"name\":\"shell-tests\"\,\"app_id\":15368\,\"workflow_id\":319611670\,\"workflow_path\":\".github/workflows/test.yml\"\}\,\{\"name\":\"changelog\ /\ validate\"\,\"app_id\":15368\,\"workflow_id\":325336751\,\"workflow_path\":\".github/workflows/changelog.yml\"\}\] > .github/workflows/ai-promotion-retry.yml
 name: AI terminal promotion retry
 
 on:
@@ -16,10 +16,10 @@ permissions:
 
 jobs:
   retry:
-    uses: Verjson/.github/.github/workflows/ai-promotion-retry.yml@6462e0cc72f4d96baa4f8ff8a862db4af0f93db7
+    uses: Verjson/.github/.github/workflows/ai-promotion-retry.yml@aecfb93232db21c708ffee4b07da55d95b3a79f2
+    secrets: inherit
     with:
+      merge_environment: merge-app
       required_checks: '[{"name":"shell-tests","app_id":15368,"workflow_id":319611670,"workflow_path":".github/workflows/test.yml"},{"name":"changelog / validate","app_id":15368,"workflow_id":325336751,"workflow_path":".github/workflows/changelog.yml"}]'
       privileged_lane: ${{ vars.CI_LANE_PRIVILEGED }}
       merge_app_client_id: ${{ vars.MERGE_APP_CLIENT_ID }}
-    secrets:
-      MERGE_APP_PRIVATE_KEY: ${{ secrets.MERGE_APP_PRIVATE_KEY }}
