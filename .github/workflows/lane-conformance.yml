@@ -1,0 +1,46 @@
+# Does the shared lane actually deliver the image contract this repository defines?
+#
+# image-build-check.yml proves the image it *builds* satisfies the Bubblewrap contract, and
+# images/base.Dockerfile refuses to publish one that does not. Neither says anything about
+# the image the fleet is currently *running*, and that gap is not theoretical: #194 landed
+# Bubblewrap on main on 2026-09-13, the newest release manifest the fleet pins remained
+# v0.2.1 from 2026-08-27, and consumers discovered the difference as a red `main` in
+# Verjson/verjson-cli rather than as a red check here (#214).
+#
+# So this probe runs *on* the lane and asserts the contract against the runner it lands on.
+# It is deliberately not a pull request check: no diff in this repository can change what
+# the deployed fleet runs, so gating code review on an operational condition would block
+# unrelated work while reporting nothing about it. Deployment drift is a scheduled signal.
+# Do not add workflow_dispatch: it can select a contributor branch whose workflow and
+# script would then run on the self-hosted lane.
+name: lane conformance
+
+on:
+  schedule:
+    - cron: '37 */6 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lane-conformance
+  cancel-in-progress: false
+
+jobs:
+  bubblewrap:
+    if: github.ref == 'refs/heads/main'
+    # The lane variable, with no `|| '["ubuntu-24.04"]'` tail. Everywhere else that tail is
+    # a portability contract for organizations without these variables; here it would route
+    # the one job whose entire purpose is to measure the self-hosted lane onto a hosted
+    # runner and report its unrelated conformance as success. A missing variable must fail
+    # this job, not silently redirect it.
+    runs-on: ${{ fromJSON(vars.VERJSON_RUNNER_DEFAULT) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+      - name: Identify the runner under test
+        run: |
+          printf 'runner=%s labels=%s\n' "${RUNNER_NAME:-unknown}" "${RUNNER_LABELS:-unset}"
+      - name: Delivered lane image satisfies the Bubblewrap contract
+        run: python3 scripts/bubblewrap-image-contract.py
