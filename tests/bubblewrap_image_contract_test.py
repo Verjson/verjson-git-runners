@@ -27,12 +27,12 @@ PIN_COPY_ARGUMENTS = '--chmod=0444 images/bubblewrap-provenance.json /usr/local/
 PACKAGE_ARCHIVE_PATH = '/etc/verjson-bubblewrap.deb'
 ROOT_USER_ARGUMENTS = "root"
 PIN_PATH = "/usr/local/share/verjson-bubblewrap-pin.json"
-# The behavioral fixtures build their own package, so their version is arbitrary; the
-# contract must take it from the provenance record rather than from a shared constant.
-FIXTURE_PACKAGE_VERSION = "0.11.1-1ubuntu0.2"
+# Behavioral fixtures use an independent valid package version. These entries
+# track the exact package versions expected from the checked-in pin.
+FIXTURE_PACKAGE_VERSION = "0.9.0-1"
 BUBBLEWRAP_PACKAGE_VERSIONS = {
-    "amd64": "0.11.1-1ubuntu0.2",
-    "arm64": "0.11.1-1ubuntu0.2",
+    "amd64": "0.11.1-1ubuntu0.3",
+    "arm64": "0.11.1-1ubuntu0.3",
 }
 HEREDOC = re.compile(r"<<(-?)(?:'([^']+)'|\"([^\"]+)\"|([A-Za-z0-9_.-]+))")
 
@@ -394,9 +394,9 @@ class BubblewrapBehaviorTest(unittest.TestCase):
         with self.assertRaisesRegex(CONTRACT.ContractError, "package archive failed"):
             self.verify()
 
-    def test_rejects_anchor_installed_from_a_different_architecture_pin(self) -> None:
-        # The archive moved one architecture ahead: the image installed 0.11.1-1ubuntu0.2
-        # while this architecture's provenance record still pins 0.11.1-1ubuntu0.1.
+    def test_rejects_anchor_with_a_different_provenance_version(self) -> None:
+        # Reject an installed package when its immutable anchor no longer matches
+        # this architecture's pinned provenance version.
         self.write_provenance(version="0.11.1-1ubuntu0.1")
         with self.assertRaisesRegex(CONTRACT.ContractError, "checksum anchor is invalid"):
             self.verify()
