@@ -3,16 +3,16 @@
   "binary_path": "/usr/bin/bwrap",
   "architectures": {
     "amd64": {
-      "version": "0.11.1-1ubuntu0.2",
+      "version": "0.11.1-1ubuntu0.3",
       "mode": "0755",
       "owner": "root:root",
-      "package_sha256": "8074e9e1abc1d4ea55826dc810b9b1266657849ed8a2d43d089c4006f64d785c"
+      "package_sha256": "d3a6c1b6b0e0474eaed6dbd055c0d601fd875af153976a0dc4aae75f4ea10868"
     },
     "arm64": {
-      "version": "0.11.1-1ubuntu0.2",
+      "version": "0.11.1-1ubuntu0.3",
       "mode": "0755",
       "owner": "root:root",
-      "package_sha256": "b4b72dd829ddafcb7e763c3a57b33e66eb35263adc56ee8c3a0d02e192e1941a"
+      "package_sha256": "739af54b7ff1199fb15e01b1dfd6869565b316a5bf4063ce2696162c934d2e03"
     }
   }
 }
