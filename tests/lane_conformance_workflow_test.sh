@@ -12,6 +12,11 @@ fail() {
 
 [[ -f "${workflow}" ]] || fail "workflow not found: ${workflow}"
 workflow_text="$(<"${workflow}")"
+bubblewrap_job="$(awk '
+  /^  bubblewrap:$/ { in_job = 1 }
+  in_job && /^[^[:space:]]/ { exit }
+  in_job { print }
+' "${workflow}")"
 
 # The image build already proves the image *it builds* satisfies the Bubblewrap contract.
 # What nothing asserted is that the image the shared lane actually *delivers* does, which
@@ -20,6 +25,21 @@ workflow_text="$(<"${workflow}")"
 # image build runs, never a re-implementation that can drift away from it.
 [[ "${workflow_text}" == *'scripts/bubblewrap-image-contract.py'* ]] \
   || fail "the lane probe does not execute the shared Bubblewrap image contract"
+
+[[ "${workflow_text}" != *'  workflow_dispatch:'* ]] \
+  || fail "the self-hosted lane probe must not dispatch a selected branch"
+
+# Keep the scheduled self-hosted observation job on the reviewed default branch and check
+# out that same branch explicitly.
+[[ "${bubblewrap_job}" == *"if: github.ref == 'refs/heads/main'"* ]] \
+  || fail "the lane probe can run code from a non-main ref"
+checkout_ref="$(awk '
+  /^      - uses: actions\/checkout@/ { in_step = 1; next }
+  in_step && /^      - / { exit }
+  in_step && /^[[:space:]]+ref:[[:space:]]*/ { sub(/^[[:space:]]+ref:[[:space:]]*/, ""); print; exit }
+' "${workflow}")"
+[[ "${checkout_ref}" == main ]] \
+  || fail "the lane probe does not explicitly check out main"
 
 # Routing. `runs-on` lives in a file a pull request can edit, so the probe must resolve the
 # lane the same way every other verJSON workflow does — through the organization lane

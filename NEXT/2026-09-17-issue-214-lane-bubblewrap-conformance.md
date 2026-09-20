@@ -19,4 +19,6 @@ The new scheduled `lane conformance` workflow runs the same
 organization lane variable and with no hosted fallback — a probe that silently reroutes to
 a GitHub-hosted runner would report an unrelated runner's conformance as this lane's.
 It is deliberately not a pull request check, because no diff here can change what the
-deployed fleet runs.
+deployed fleet runs. It has no manual dispatch trigger that could select contributor-branch
+code for execution on the self-hosted lane; the scheduled job is main-only and explicitly
+checks out `main`.
