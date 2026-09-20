@@ -14,6 +14,9 @@ whose `gha-runner-pwsh` amd64 digest
 `bwrap` at all, so `Verjson/verjson-cli` met the gap as a red `main` on `gha-general-9`
 rather than as a red check here.
 
+This change adds detection only; releasing the fixed image and repointing the target
+fleet manifest remain outstanding work under #214.
+
 The new scheduled `lane conformance` workflow runs the same
 `scripts/bubblewrap-image-contract.py` the image build runs, on the lane, through the
 organization lane variable and with no hosted fallback — a probe that silently reroutes to
