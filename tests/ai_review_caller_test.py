@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # asserted the wrong contract.
 _PINS = json.loads((ROOT / 'tests/contract_pins.json').read_text())
 AI_CALLER_CONTRACT = _PINS['ai-callers']
+AI_REVIEW_CONTRACT = _PINS['ai-review-merge']
 GENERATED_ARTIFACTS_CONTRACT = _PINS['generated-artifacts']
 CONTAINER_CONTRACT = _PINS['containers']
 
@@ -24,7 +25,7 @@ CONTAINER_CONTRACT = _PINS['containers']
 # the same way in tests/privileged_merge_caller_contract_test.sh.
 GENERATED_CALLER_DIGESTS = {
     '.github/workflows/ai-review-merge.yml':
-        '3f084d6f1f8b29de4a861ab48fac786cfa16833b05bd5f0f8b79d9d85c1b8aa2',
+        'd87137e059c1381939b57bfeed9bba16a87fbbbe1dd55c0dccb0c8b972768bf0',
     '.github/workflows/ai-review-label-rearm.yml':
         'f9f3a3c30b6e2b79760e02664342bcdca00b16dcd13234b5c66bd14ccb5fa453',
 }
@@ -42,7 +43,7 @@ class ReviewCallerTest(unittest.TestCase):
     def test_review_dispatch_keeps_exact_head_inputs_with_repaired_immutable_contract(self):
         caller = yaml.safe_load((ROOT / '.github/workflows/ai-review-merge.yml').read_text())
         job = caller['jobs']['review']
-        self.assertEqual(job['uses'], 'Verjson/.github/.github/workflows/ai-review-merge.yml@' + AI_CALLER_CONTRACT)
+        self.assertEqual(job['uses'], 'Verjson/.github/.github/workflows/ai-review-merge.yml@' + AI_REVIEW_CONTRACT)
         self.assertEqual(job['with']['expected_head_sha'], '${{ inputs.expected_head_sha }}')
         self.assertEqual(job['with']['authorization_check_id'], '${{ inputs.authorization_check_id }}')
         self.assertEqual(job['with']['arm_run_id'], '${{ inputs.arm_run_id }}')
@@ -58,7 +59,7 @@ class ReviewCallerTest(unittest.TestCase):
         families = {
             'ai-privileged-merge.yml': AI_CALLER_CONTRACT,
             'ai-promotion-retry.yml': AI_CALLER_CONTRACT,
-            'ai-review-merge.yml': AI_CALLER_CONTRACT,
+            'ai-review-merge.yml': AI_REVIEW_CONTRACT,
             'gate-rearm.yml': AI_CALLER_CONTRACT,
             'generated-artifacts.yml': GENERATED_ARTIFACTS_CONTRACT,
             'container-candidate.yml': CONTAINER_CONTRACT,
