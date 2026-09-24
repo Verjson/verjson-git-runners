@@ -25,9 +25,9 @@ CONTAINER_CONTRACT = _PINS['containers']
 # the same way in tests/privileged_merge_caller_contract_test.sh.
 GENERATED_CALLER_DIGESTS = {
     '.github/workflows/ai-review-merge.yml':
-        'd87137e059c1381939b57bfeed9bba16a87fbbbe1dd55c0dccb0c8b972768bf0',
+        'eac19a2a2d8c811618e3bca541f9344bbfee8b180330882e8073932106e4149f',
     '.github/workflows/ai-review-label-rearm.yml':
-        'f9f3a3c30b6e2b79760e02664342bcdca00b16dcd13234b5c66bd14ccb5fa453',
+        '62bbb760f54229db79465c7803aa93bed38bf95d66192bb4e4ecea0006eebe59',
 }
 
 
