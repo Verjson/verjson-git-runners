@@ -26,7 +26,7 @@
   "evidenceCommand": ["python3", "scripts/runner-deployment-evidence.py"],
   "probeCommand": ["python3", "scripts/runner-deployment-probe.py"],
   "expectedRelease": {
-    "sourceRepository": "Verjson/verjson-github-runner",
+    "sourceRepository": "Verjson/verjson-git-runners",
     "sourceRef": "refs/heads/main",
     "signerWorkflow": "Verjson/.github/.github/workflows/container-release.yml",
     "contractCommit": "4704880d1a4234dd70d06ee03be0dc8e389cee5c",

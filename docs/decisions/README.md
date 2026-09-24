@@ -3,6 +3,7 @@
 <!-- BEGIN ADR INDEX -->
 | # | Date | Decision |
 |---|------|----------|
+| [0014](0014-runner-host-evidence-credential-provisioning/README.md) | 2026-09-24 | Provision the dedicated read-only host-evidence credentials on the canary host |
 | [0013](0013-protected-worker-deployment/README.md) | 2026-09-09 | Adopt protected worker deployment with provider-specific admission |
 | [0012](0012-gitlab-primary-runner-producer/README.md) | 2026-09-08 | Make GitLab the primary runner producer |
 | [0011](0011-consume-released-runner-images-in-gitlab/README.md) | 2026-09-07 | Consume released runner images as GitLab build containers |
