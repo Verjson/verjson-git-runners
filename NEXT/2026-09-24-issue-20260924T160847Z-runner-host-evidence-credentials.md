@@ -1,7 +1,9 @@
 ---
 date: 2026-09-24
-issue: 197
+id: 20260924T160847Z
+refs: 197
 title: Provision dedicated read-only host-evidence credentials on the canary host
+impact: patch
 ---
 Provisioned the four `production`-environment secrets `.github` ADR 0198 requires
 (`RUNNER_HOST_EVIDENCE_APP_PRIVATE_KEY`, `RUNNER_HOST_EVIDENCE_SSH_PRIVATE_KEY`,
