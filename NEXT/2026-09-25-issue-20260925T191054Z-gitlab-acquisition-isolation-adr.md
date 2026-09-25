@@ -2,6 +2,7 @@
 date: 2026-09-25
 id: 20260925T191054Z
 refs: 208
+impact: minor
 title: Record the GitLab signed candidate acquisition and isolation design
 ---
 
