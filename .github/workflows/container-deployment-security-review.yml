@@ -12,7 +12,7 @@ permissions:
   pull-requests: read
 jobs:
   produce:
-    uses: Verjson/.github/.github/workflows/container-deployment-review-producer.yml@a7f14e69f0784cdfb620f327fa30bcf1db46d253
+    uses: Verjson/.github/.github/workflows/container-deployment-review-producer.yml@22039a2e8d19339f36654323594743e8fd5031a1
     with:
       kind: security
       pull-request: ${{ inputs.pull-request }}
