@@ -23,10 +23,10 @@ isolation), ADR 0034 (signed GitHub candidate acquisition), ADR 0031/0032 (CLI/O
 execution), ADR 0033 (protected native adapters), and ADR 0035 (approved-candidate producer
 worker). Notably, ADR 0020's isolation contract is already written with GitLab Runner
 18.3.1's specific behavior in mind (its Bash writer's `: | eval`, the Kubernetes executor's
-variable injection, the `/scripts` volume) — it explicitly states "repository does not
-change external runner implementation," meaning it already assumes some other repository
-owns proving the capability exists on the actual runner fleet. This repository is that
-other repository.
+variable injection, the `/scripts` volume) — it explicitly states "this repository does not
+change *that* external runner implementation," meaning it already assumes some other
+repository owns proving the capability exists on the actual runner fleet. This repository
+is that other repository.
 
 This repository's own investigation of installed GitLab CE 18.3.1 (issue #208 comments,
 2026-09-10) found concrete bypasses a naive design would miss: developer pipeline-variable
@@ -36,6 +36,15 @@ validation from it; protected project/group variables can shadow predefined valu
 Conditional YAML `include` guards therefore cannot alone establish pre-helper execution
 identity — an authenticated, post-hoc check against GitLab's own API is required regardless
 of what the pipeline YAML claims about itself.
+
+`Verjson/verjson-ci` ADR 0058 (trust boundary for GitLab CI/CD variable mutations) is not yet
+merged as of this writing: it exists only on that repository's open `Verjson/verjson-ci#216`,
+which currently has failing CI (`ci / acquire-secretless-dependencies`, `ci / build-test`) and
+no merge. Areas 4 and 5 below build on ADR 0058's specific mechanism
+(`GitLabVariableApi`, its construction-bound plan digest, injected `authorizationVerifier`, and
+exclusive-lock `mutationCoordinator`) as the intended design, not as a landed, settled
+dependency. If ADR 0058 changes materially before it merges, Areas 4 and 5 need revisiting
+against the merged text.
 
 Current live infrastructure this design must build on, not replace: `deploy/gitlab/runner.json`
 already deploys a restricted-admission GitLab Runner 18.3.1 manager in Kubernetes (unprivileged
@@ -119,31 +128,36 @@ the real hosted job graph. Missing activation excludes the candidate job entirel
 degraded fallback.
 
 GitLab-specific divergence: "activation" means a protected, environment-scoped GitLab CI/CD
-variable. Reuse ADR 0058's `GitLabVariableApi` mutation boundary as-is for this write — its
-construction-bound plan digest, injected `authorizationVerifier`, exclusive-lock
-`mutationCoordinator` keyed by exact `(projectId, key, environmentScope)`, and
-exact-`(key, environmentScope)`-match verification on every read close precisely the class of bug
-this area would otherwise reintroduce (a variable write or read silently targeting the wrong
-scope). Do not build a second, weaker variable-write path for this activation gate. The activation
-variable must pair with a pinned, protected `.gitlab-ci.yml` job definition that a developer-supplied
-pipeline variable cannot override, closing the specific bypasses this repository's own CE 18.3.1
-investigation found (ordinary variable overrides, child-pipeline/on-demand-DAST exemption from
-`no_one_allowed`). The runner-fleet side (the `verjson-gitlab-runner` Kubernetes deployment) must
-reject any job lacking the expected protected-variable evidence rather than trusting the job's own
-declared pipeline source.
+variable, written once (or on deliberate reactivation) as an out-of-band operator action rather
+than a runtime side effect of any pipeline run. Use ADR 0058's `GitLabVariableApi` mutation
+boundary for this write, per its design — its construction-bound plan digest, injected
+`authorizationVerifier`, exclusive-lock `mutationCoordinator` keyed by exact
+`(projectId, key, environmentScope)`, and exact-`(key, environmentScope)`-match verification on
+every read close precisely the class of bug this area would otherwise reintroduce (a variable
+write or read silently targeting the wrong scope). Do not build a second, weaker variable-write
+path for this activation gate. The activation variable must pair with a pinned, protected
+`.gitlab-ci.yml` job definition that a developer-supplied pipeline variable cannot override,
+closing the specific bypasses this repository's own CE 18.3.1 investigation found (ordinary
+variable overrides, child-pipeline/on-demand-DAST exemption from `no_one_allowed`). The
+runner-fleet side (the `verjson-gitlab-runner` Kubernetes deployment) must reject any job
+lacking the expected protected-variable evidence rather than trusting the job's own declared
+pipeline source.
 
 ### 5. Native GitLab WEB pipeline admission with rollback receipts
 
 Adopt unchanged from ADR 0033: raw CLI/OCI evidence is not itself a hosted-job claim; a separate
 authenticated receipt-observation step is required to prove the real hosted job graph.
 
-This area is new relative to every GitHub-side ADR above it: it is the one place this design
-introduces a *mutating* capability (rollback), where the GitHub-side candidate-execution work was
-execution/observation-only throughout. Any rollback or activation write must go through ADR
-0057/0058's trust boundary in full — construction-bound plan digest, injected authorization
-verifier, exclusive-lock mutation coordinator, durable metadata-only intent/receipt journal, and
-"an uncertain write requires reconciliation, must not be blindly retried." Do not build a second,
-weaker mutation path for runner-fleet rollback merely because the caller is a different repository.
+This area is new relative to every GitHub-side ADR above it: together with area 4's activation
+write, it is where this design introduces *mutating* capability, where the GitHub-side
+candidate-execution work was execution/observation-only throughout. The two mutations are
+different in kind and timing — area 4's activation write is a deliberate, infrequent,
+out-of-band operator action, while a rollback receipt here is written as a direct consequence of
+a real pipeline run — but both go through ADR 0057/0058's trust boundary in full: construction-bound
+plan digest, injected authorization verifier, exclusive-lock mutation coordinator, durable
+metadata-only intent/receipt journal, and "an uncertain write requires reconciliation, must not be
+blindly retried." Do not build a second, weaker mutation path for runner-fleet rollback merely
+because the caller is a different repository.
 Concretely: a rollback receipt is a durable journal record (pipeline ID, job ID, commit SHA,
 protected-variable plan digest, outcome) written through that same coordinator discipline, and
 retained even on partial or uncertain failure — never silently cleaned up, matching ADR
@@ -158,11 +172,12 @@ only a check performed at the boundary that matters is valid evidence for that b
 
 ## Consequences
 
-- This repository commits to *extending*, not reimplementing, `Verjson/verjson-ci`'s already-reviewed
-  acquisition, isolation, and mutation contracts. A future change to any of ADR 0020, 0033, 0034,
-  0052, 0057, or 0058 is a cross-repository dependency this repository must track and adopt, not a
-  point this repository forks independently. `Verjson/verjson-ci` is an unmanaged repository from
-  this PM's perspective; a defect or gap found in those upstream contracts while implementing this
+- This repository commits to *extending*, not reimplementing, `Verjson/verjson-ci`'s acquisition,
+  isolation, and mutation contracts — merged and reviewed for ADR 0020, 0033, 0034, 0052, and 0057;
+  still pending merge for ADR 0058 as of this writing (see Context). A future change to any of them
+  is a cross-repository dependency this repository must track and adopt, not a point this repository
+  forks independently. `Verjson/verjson-ci` is an unmanaged repository from this PM's perspective;
+  a defect or gap found in those upstream contracts while implementing this
   design is a report to that repository's own PM, not a local workaround here.
 - No code lands in this pass. Once accepted, decompose into independently reviewable sub-issues,
   one per area: (1) image/Bubblewrap packaging and promotion-chain assertion; (2) the GitLab
@@ -191,9 +206,10 @@ only a check performed at the boundary that matters is valid evidence for that b
 - [ADR 0034 (verjson-ci) — Signed GitHub candidate acquisition](https://github.com/Verjson/verjson-ci/tree/main/docs/decisions/0034-signed-github-candidate-acquisition)
 - [ADR 0035 (verjson-ci) — Approved-candidate producer worker](https://github.com/Verjson/verjson-ci/tree/main/docs/decisions/0035-approved-candidate-producer-worker)
 - [ADR 0052 (verjson-ci) — Capability-detected GitLab provisioning identities](https://github.com/Verjson/verjson-ci/tree/main/docs/decisions/0052-gitlab-provisioning-capability-matrix)
-- [ADR 0057 (verjson-ci) — Trusted environment mutation coordination](https://github.com/Verjson/verjson-ci/tree/main/docs/decisions/0057-trusted-environment-mutation-coordination)
+- [ADR 0057 (verjson-ci) — Trust boundary for GitHub environment mutations](https://github.com/Verjson/verjson-ci/tree/main/docs/decisions/0057-trusted-environment-mutation-coordination)
 - [ADR 0058 (verjson-ci) — Trust boundary for GitLab CI/CD variable mutations](https://github.com/Verjson/verjson-ci/tree/main/docs/decisions/0058-gitlab-variable-mutation-trust-boundary)
 - [Issue #208 (this repository)](https://github.com/Verjson/verjson-git-runners/issues/208)
+- [Verjson/verjson-ci#216 — ADR 0058's not-yet-merged source PR](https://github.com/Verjson/verjson-ci/pull/216)
 - [Issue #194 (this repository) — shared Bubblewrap package prerequisite](https://github.com/Verjson/verjson-git-runners/issues/194)
 - [Issue #214 (this repository) — bwrap absent on the gha-general lane](https://github.com/Verjson/verjson-git-runners/issues/214)
 - `deploy/gitlab/runner.json`, `deploy/gitlab/README.md`, `.verjson/runtime-candidate.json`,
