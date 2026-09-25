@@ -1,9 +1,9 @@
-# 0014 — Provision the dedicated read-only host-evidence credentials on the canary host
+# 0015 — Provision the dedicated read-only host-evidence credentials on the canary host
 
 - **Date:** 2026-09-24
 - **Status:** Accepted
 - **Issue:** [#197](https://github.com/Verjson/verjson-git-runners/issues/197), [Verjson/.github#1451](https://github.com/Verjson/.github/issues/1451)
-- **Related:** [ADR 0013](../0013-protected-worker-deployment/README.md), [Verjson/.github ADR 0198](https://github.com/Verjson/.github/tree/main/docs/decisions/0198-confine-runner-host-evidence-credentials)
+- **Related:** [ADR 0014](../0014-protected-worker-deployment/README.md), [Verjson/.github ADR 0198](https://github.com/Verjson/.github/tree/main/docs/decisions/0198-confine-runner-host-evidence-credentials)
 - **Category:** cloud IAM, secrets handling (sensitive class)
 
 ## Context
@@ -20,7 +20,7 @@ been exercised against a live host.
 
 Breaking the cycle required provisioning real credentials against `gha-deployment-canary`
 (Droplet 596126740, DigitalOcean project `verjson-ci`), the non-production canary host
-ADR 0013 already designated. `gha-deployment-peer` (Droplet 599398725) was initially
+ADR 0014 already designated. `gha-deployment-peer` (Droplet 599398725) was initially
 considered but is a bare, unadmitted host with no runner deployed — `gha-deployment-canary`
 already carries a real, passed admission (GitHub runner `gha-general-10`, agent id 512).
 

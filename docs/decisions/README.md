@@ -1,10 +1,12 @@
 # Architecture decisions
 
 <!-- BEGIN ADR INDEX -->
+<!-- prettier-ignore -->
 | # | Date | Decision |
 |---|------|----------|
-| [0014](0014-runner-host-evidence-credential-provisioning/README.md) | 2026-09-24 | Provision the dedicated read-only host-evidence credentials on the canary host |
-| [0013](0013-protected-worker-deployment/README.md) | 2026-09-09 | Adopt protected worker deployment with provider-specific admission |
+| [0015](0015-runner-host-evidence-credential-provisioning/README.md) | 2026-09-24 | Provision the dedicated read-only host-evidence credentials on the canary host |
+| [0014](0014-protected-worker-deployment/README.md) | 2026-09-09 | Adopt protected worker deployment with provider-specific admission |
+| [0013](0013-gitlab-signed-candidate-acquisition-and-isolated-execution/README.md) | 2026-09-25 | GitLab signed candidate acquisition and isolated execution |
 | [0012](0012-gitlab-primary-runner-producer/README.md) | 2026-09-08 | Make GitLab the primary runner producer |
 | [0011](0011-consume-released-runner-images-in-gitlab/README.md) | 2026-09-07 | Consume released runner images as GitLab build containers |
 | [0010](0010-admit-general-runners-by-docker-bridge-routing/README.md) | 2026-08-26 | Admit general runners by Docker bridge routing |
@@ -17,4 +19,5 @@
 | [0003](0003-public-repository-ci-routes-to-hosted-runners/README.md) | 2026-08-05 | Route this public repository's CI to GitHub-hosted runners |
 | [0002](0002-one-use-pat-transport/README.md) | 2026-07-28 | Deliver launcher PATs through a one-use FIFO |
 | [0001](0001-attested-ci-runner-contract/README.md) | 2026-07-27 | Attested `ci` runner contract |
+
 <!-- END ADR INDEX -->

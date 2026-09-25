@@ -1,17 +1,18 @@
 {
   "package": "bubblewrap",
-  "version": "0.11.1-1ubuntu0.1",
   "binary_path": "/usr/bin/bwrap",
   "architectures": {
     "amd64": {
+      "version": "0.11.1-1ubuntu0.3",
       "mode": "0755",
       "owner": "root:root",
-      "package_sha256": "b353088d1003adb3f760deeccfb84c47928a36c8dc102bf680efc94eb19f4408"
+      "package_sha256": "d3a6c1b6b0e0474eaed6dbd055c0d601fd875af153976a0dc4aae75f4ea10868"
     },
     "arm64": {
+      "version": "0.11.1-1ubuntu0.3",
       "mode": "0755",
       "owner": "root:root",
-      "package_sha256": "7798d8926cf4c51cfc56187703499d75f7ab66d199a700d1093b45916d7120c0"
+      "package_sha256": "739af54b7ff1199fb15e01b1dfd6869565b316a5bf4063ce2696162c934d2e03"
     }
   }
 }

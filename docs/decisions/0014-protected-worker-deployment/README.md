@@ -1,4 +1,4 @@
-# 0013 — Adopt protected worker deployment with provider-specific admission
+# 0014 — Adopt protected worker deployment with provider-specific admission
 
 - **Date:** 2026-09-09
 - **Status:** Proposed
