@@ -4,6 +4,7 @@
 <!-- prettier-ignore -->
 | # | Date | Decision |
 |---|------|----------|
+| [0013](0013-gitlab-signed-candidate-acquisition-and-isolated-execution/README.md) | 2026-09-25 | GitLab signed candidate acquisition and isolated execution |
 | [0012](0012-gitlab-primary-runner-producer/README.md) | 2026-09-08 | Make GitLab the primary runner producer |
 | [0011](0011-consume-released-runner-images-in-gitlab/README.md) | 2026-09-07 | Consume released runner images as GitLab build containers |
 | [0010](0010-admit-general-runners-by-docker-bridge-routing/README.md) | 2026-08-26 | Admit general runners by Docker bridge routing |
