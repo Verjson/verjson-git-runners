@@ -59,7 +59,7 @@ jobs:
       # the base target rather than to a tag in the local daemon image store that this
       # driver cannot see. amd64 only — a PR check catches source breakage, not arch
       # drift; the multi-arch build stays in the canonical candidate workflow.
-      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       # One bake solve: the base is built once and the five variants that sit on it fan out
       # concurrently, each still resolving VERJSON_BASE_IMAGE to that same-run base the
       # way the candidate workflow wires it, so a base change that breaks a variant fails
@@ -82,7 +82,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       # The root Dockerfile has its own FROM and pins, independent of images/base.Dockerfile,
       # so it can break on its own and is built in parallel.
       - name: Build root Dockerfile
@@ -109,7 +109,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       # Same QEMU pin as the candidate workflow, where the arm64 build otherwise runs.
       - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
-      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - name: Build the base image and the pwsh variant for arm64 under emulation
         uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7.3.0
         env:
