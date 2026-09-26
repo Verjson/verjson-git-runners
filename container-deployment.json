@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "reviewAuthority": {
+    "code": {
+      "appId": 5077584,
+      "installationId": 164920828,
+      "checkName": "runner-deploy-code-review",
+      "workflowPath": ".github/workflows/container-deployment-code-review.yml"
+    },
+    "security": {
+      "appId": 5077710,
+      "installationId": 164922060,
+      "checkName": "runner-deploy-security-review",
+      "workflowPath": ".github/workflows/container-deployment-security-review.yml"
+    },
+    "ai": {
+      "appId": 5077745,
+      "installationId": 164922972,
+      "sourceAppId": 4528902,
+      "sourceCheckName": "arm",
+      "checkName": "runner-deploy-ai-review",
+      "workflowPath": ".github/workflows/container-deployment-ai-review.yml"
+    }
+  },
+  "cliCommand": ["verjson-cloud"],
+  "evidenceCommand": ["python3", "scripts/runner-deployment-evidence.py"],
+  "probeCommand": ["python3", "scripts/runner-deployment-probe.py"],
+  "hostEvidenceAuthority": {
+    "appId": 5062258,
+    "installationId": 164480373
+  },
+  "expectedRelease": {
+    "sourceRepository": "Verjson/verjson-git-runners",
+    "sourceRef": "refs/heads/main",
+    "signerWorkflow": "Verjson/.github/.github/workflows/container-release.yml",
+    "contractCommit": "4704880d1a4234dd70d06ee03be0dc8e389cee5c",
+    "variant": "pwsh"
+  },
+  "fleets": {
+    "github-canary": {
+      "lane": "general",
+      "project": "d5afdb31-f018-4996-b11d-37a577f92252",
+      "canary": "gha-deployment-canary",
+      "runners": ["gha-deployment-canary"],
+      "minimumAvailable": 1,
+      "drainTimeoutSeconds": 600,
+      "probeTimeoutSeconds": 300,
+      "observationSeconds": 120,
+      "runnerGroup": "verjson-runner-canary",
+      "requiredLabels": ["general", "pwsh"],
+      "requiredTools": ["pwsh"],
+      "hostEvidence": {
+        "doContext": "default",
+        "doSshKey": "runner-key",
+        "maxAgeSeconds": 300
+      }
+    }
+  }
+}

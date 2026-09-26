@@ -16,6 +16,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Validate current AI review callers
         run: python3 tests/ai_review_caller_test.py
+      - name: Pending deployment gate does not mask other contract tests
+        run: python3 tests/deployment_gate_ordering_test.py
       - name: Validate signed producer plan binding
         run: python3 tests/producer_plan_test.py
       - name: Validate GitLab installer migration
@@ -58,6 +60,8 @@ jobs:
         run: bash tests/neutral_ci_credentials_test.sh
       - name: Canonical privileged merge callers are immutable and read-only
         run: bash tests/privileged_merge_caller_contract_test.sh
+      - name: Canonical container deployment adopter is ready
+        run: bash scripts/container-deployment-contract.test.sh
 
   go-tests:
     runs-on: ubuntu-latest
