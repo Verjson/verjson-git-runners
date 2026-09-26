@@ -184,7 +184,11 @@ def collect_evidence(
     if remote_bytes != local_bytes:
         raise EvidenceError("release asset bytes differ from the locally retained manifest")
     try:
-        manifest = json.loads(remote_bytes)
+        manifest_text = remote_bytes.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise EvidenceError("release asset bytes are not valid UTF-8") from error
+    try:
+        manifest = json.loads(manifest_text)
     except ValueError as error:
         raise EvidenceError("release asset bytes are not valid JSON") from error
 
@@ -199,7 +203,7 @@ def collect_evidence(
         "workflowRunAttempt": 1,
         "manifestIdentity": manifest_identity,
         "manifest": manifest,
-        "manifestBytes": remote_bytes.decode("utf-8"),
+        "manifestBytes": manifest_text,
         "releaseAssetId": asset_id,
     }
     return evidence

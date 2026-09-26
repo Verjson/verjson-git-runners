@@ -118,6 +118,15 @@ class FindLocalManifestTest(unittest.TestCase):
             with self.assertRaises(EVIDENCE.EvidenceError):
                 EVIDENCE.find_local_manifest(repo, REAL_DIGEST)
 
+    def test_raises_when_a_locally_retained_manifest_is_not_valid_json(self) -> None:
+        with TemporaryDirectory() as raw:
+            repo = _make_repo(Path(raw))
+            malformed = b"not json"
+            digest = "sha256:" + hashlib.sha256(malformed).hexdigest()
+            (repo / "RELEASES" / "containers" / "v1.2.3.json").write_bytes(malformed)
+            with self.assertRaises(EVIDENCE.EvidenceError):
+                EVIDENCE.find_local_manifest(repo, digest)
+
     def test_rejects_a_release_version_outside_stable_semver(self) -> None:
         with TemporaryDirectory() as raw:
             repo = _make_repo(Path(raw))
@@ -220,6 +229,47 @@ class CollectEvidenceTest(unittest.TestCase):
             subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
             with self.assertRaises(EVIDENCE.EvidenceError):
                 EVIDENCE.collect_evidence(repo, REAL_DIGEST, "", opener=_opener_sequence())
+
+    def test_raises_a_clean_error_when_asset_bytes_are_not_valid_utf8(self) -> None:
+        with TemporaryDirectory() as raw:
+            repo = _make_repo(Path(raw))
+            # Valid JSON per RFC 8259 (UTF-16 with BOM) but not valid UTF-8 bytes
+            # (0xFF is never a valid UTF-8 byte): json.loads() auto-detects and
+            # strips the BOM/encoding and parses it, so a decode guard is needed
+            # downstream to avoid an uncaught UnicodeDecodeError.
+            weird = json.dumps({"releaseVersion": "1.2.3"}).encode("utf-16")
+            digest = "sha256:" + hashlib.sha256(weird).hexdigest()
+            (repo / "RELEASES" / "containers" / "v1.2.3.json").write_bytes(weird)
+            opener = _opener_sequence(_release_tags_payload(asset_id=1, size=len(weird)), weird)
+            with self.assertRaises(EVIDENCE.EvidenceError):
+                EVIDENCE.collect_evidence(repo, digest, "", opener=opener)
+
+    def test_raises_when_the_release_asset_metadata_is_not_json(self) -> None:
+        with TemporaryDirectory() as raw:
+            repo = _make_repo(Path(raw))
+            opener = _opener_sequence(b"not json at all")
+            with self.assertRaises(EVIDENCE.EvidenceError):
+                EVIDENCE.collect_evidence(repo, REAL_DIGEST, "", opener=opener)
+
+    def test_raises_when_the_release_manifest_asset_id_has_the_wrong_type(self) -> None:
+        with TemporaryDirectory() as raw:
+            repo = _make_repo(Path(raw))
+            payload = json.dumps({
+                "assets": [{"id": "not-an-int", "name": "release-manifest.json", "size": len(MANIFEST_BYTES)}],
+            }).encode("utf-8")
+            opener = _opener_sequence(payload)
+            with self.assertRaises(EVIDENCE.EvidenceError):
+                EVIDENCE.collect_evidence(repo, REAL_DIGEST, "", opener=opener)
+
+    def test_raises_when_the_release_manifest_asset_size_has_the_wrong_type(self) -> None:
+        with TemporaryDirectory() as raw:
+            repo = _make_repo(Path(raw))
+            payload = json.dumps({
+                "assets": [{"id": 1, "name": "release-manifest.json", "size": "not-an-int"}],
+            }).encode("utf-8")
+            opener = _opener_sequence(payload)
+            with self.assertRaises(EVIDENCE.EvidenceError):
+                EVIDENCE.collect_evidence(repo, REAL_DIGEST, "", opener=opener)
 
     def test_raises_when_expected_release_source_repository_is_missing(self) -> None:
         with TemporaryDirectory() as raw:
