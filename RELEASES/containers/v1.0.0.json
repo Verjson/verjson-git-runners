@@ -1,0 +1,228 @@
+{
+  "candidateManifestDigest": "sha256:f65b9005fccaeaeb8440b5b94957ebe783f85aed1550e86b715db4a264196d01",
+  "candidateVersion": "1.0.0-rc.36194362729.1",
+  "images": [
+    {
+      "indexDigest": "sha256:74f1733a7a90a4798b29632881449800b30e47e9abaa8bcd049a94f5c483ed8e",
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "digest": "sha256:992652e41e2ff92f6380a249092cdd31cb5d96dadcf3b97c35d1cb4d1f3d8963",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "digest": "sha256:27479378a1f0019395d03380f0a8d67a7a1da263d3a7c0ccaefd4fe1d05a23ca",
+          "os": "linux"
+        }
+      ],
+      "provenance": {
+        "attestationDigest": "sha256:1ccc2d829774cc3a49db21f72a12809fc335b0514d1a1470323e21549a5152e5",
+        "builderIdentity": "Verjson/.github/.github/workflows/container-candidate-publish.yml@3b83ddeaa421e60005e15d36e946e2f83832bacb",
+        "predicateType": "https://slsa.dev/provenance/v1"
+      },
+      "repository": "ghcr.io/verjson/gha-runner",
+      "sbom": {
+        "attestationDigest": "sha256:b0cf2608b0dc1e8daa4d0aa1b0f5e9369693a1f25a2ec546d52782166b8737c2",
+        "predicateType": "https://spdx.dev/Document/v2.3"
+      },
+      "variant": "base"
+    },
+    {
+      "indexDigest": "sha256:4c2b3929dd02470481e868f855aa0426d4c5ebb8b5d75a851890bbbf68303ea9",
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "digest": "sha256:5d7c031d95ad281797b07b9a2f3a19c669418ddd85649ec0f10566c5d70d98c4",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "digest": "sha256:de3afa62a4bb005ee95bd66c5de5398a0fa146187462b4ba3762974a05966889",
+          "os": "linux"
+        }
+      ],
+      "provenance": {
+        "attestationDigest": "sha256:382c2c630344ac0da1ba9d2b94830b2181cffead5616c2e55d3f7b1e47e278db",
+        "builderIdentity": "Verjson/.github/.github/workflows/container-candidate-publish.yml@3b83ddeaa421e60005e15d36e946e2f83832bacb",
+        "predicateType": "https://slsa.dev/provenance/v1"
+      },
+      "repository": "ghcr.io/verjson/gha-runner-go",
+      "sbom": {
+        "attestationDigest": "sha256:1741706630e08d388af9b7efb335738b443f19b5ac71aa3880873956214fb09f",
+        "predicateType": "https://spdx.dev/Document/v2.3"
+      },
+      "variant": "go"
+    },
+    {
+      "indexDigest": "sha256:2a0c056515e27e70ebbbf71d5fe4735d9c5a27ba25b282a92f6accae82e9b152",
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "digest": "sha256:b7c01a7d82a20bbddf0a21559b5bc6feb6349472fa35b12a66f305683538fe50",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "digest": "sha256:bc392b6d86c1a637b41755474d457b8bf129e0be4be0dec5e3c28ff55eb98063",
+          "os": "linux"
+        }
+      ],
+      "provenance": {
+        "attestationDigest": "sha256:542db69edbfecf833acd55adf81beccd0fe4cec6f5daa91997bbc0204a8af1b3",
+        "builderIdentity": "Verjson/.github/.github/workflows/container-candidate-publish.yml@3b83ddeaa421e60005e15d36e946e2f83832bacb",
+        "predicateType": "https://slsa.dev/provenance/v1"
+      },
+      "repository": "ghcr.io/verjson/gha-runner-node",
+      "sbom": {
+        "attestationDigest": "sha256:c0c2732ad22bc74d637722aa2d2706cbbb9a64882b2adb29cb8eac8fbaef7613",
+        "predicateType": "https://spdx.dev/Document/v2.3"
+      },
+      "variant": "node"
+    },
+    {
+      "indexDigest": "sha256:3342665d62f26a702992c7ba3272562581ebc6f8a1956738dfb43c4f557e0030",
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "digest": "sha256:4462e909d4d8f22fc83838fd02906d4b676eeba4e15724eecff947dd451cc275",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "digest": "sha256:04f69a002a695bc6664f6eebcd349e7bba414fb27e384acaaa8815210bb4df1c",
+          "os": "linux"
+        }
+      ],
+      "provenance": {
+        "attestationDigest": "sha256:7bb79782504d12d1f3f0850bcd42e12a0d1c06aef94185d4519fddee3374fae2",
+        "builderIdentity": "Verjson/.github/.github/workflows/container-candidate-publish.yml@3b83ddeaa421e60005e15d36e946e2f83832bacb",
+        "predicateType": "https://slsa.dev/provenance/v1"
+      },
+      "repository": "ghcr.io/verjson/gha-runner-pwsh",
+      "sbom": {
+        "attestationDigest": "sha256:1a08fb1fd893fc9f2ece91baf3f7cae33f7ea3d9a6b63bcc7a1d7490a82b638b",
+        "predicateType": "https://spdx.dev/Document/v2.3"
+      },
+      "variant": "pwsh"
+    },
+    {
+      "indexDigest": "sha256:3f77210c556230b1649971bd8d64a3ec52525e681ae64ca21426cc030395c775",
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "digest": "sha256:2577bee355e13b7616469a0ecbe73dcf8d5e8d9061159c8098e4969c83901fb9",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "digest": "sha256:b0a072eb54160688997e1a0ee42bbde2ed32b231adbefb1fa6a226c97eaceff0",
+          "os": "linux"
+        }
+      ],
+      "provenance": {
+        "attestationDigest": "sha256:6b5311e0b8da7b6703ad7a51d1b325453515066ea797ef942fa15f0bb04499ff",
+        "builderIdentity": "Verjson/.github/.github/workflows/container-candidate-publish.yml@3b83ddeaa421e60005e15d36e946e2f83832bacb",
+        "predicateType": "https://slsa.dev/provenance/v1"
+      },
+      "repository": "ghcr.io/verjson/gha-runner-python",
+      "sbom": {
+        "attestationDigest": "sha256:1a8dd2f99b7700fc0680f20f3726cc2e37b990b4b86846988e38d51d2f70fb18",
+        "predicateType": "https://spdx.dev/Document/v2.3"
+      },
+      "variant": "python"
+    },
+    {
+      "indexDigest": "sha256:5f7f26542b84acf68ed29789b6bbea9fb08f369640b720dc7d0bb3d2984a14a2",
+      "platforms": [
+        {
+          "architecture": "amd64",
+          "digest": "sha256:47338c4e0152334ffa2332737ce13a98622789e210370c8f54e55ebc9ba595d8",
+          "os": "linux"
+        },
+        {
+          "architecture": "arm64",
+          "digest": "sha256:f4174229aa64092d52c5aa1466cefdd82899b95a9c767b142fccc6c59ba2f142",
+          "os": "linux"
+        }
+      ],
+      "provenance": {
+        "attestationDigest": "sha256:f2c7e66c1962edddb5109691d32282655f5f5e350e1c0ea59053fcb32c38ccd0",
+        "builderIdentity": "Verjson/.github/.github/workflows/container-candidate-publish.yml@3b83ddeaa421e60005e15d36e946e2f83832bacb",
+        "predicateType": "https://slsa.dev/provenance/v1"
+      },
+      "repository": "ghcr.io/verjson/gha-runner-rust",
+      "sbom": {
+        "attestationDigest": "sha256:322e41897eaf64fcdcfdb690fb3f438b99df822e1c2b4904ab5252b83bdbf879",
+        "predicateType": "https://spdx.dev/Document/v2.3"
+      },
+      "variant": "rust"
+    }
+  ],
+  "previousRelease": {
+    "manifestDigest": "sha256:4f5bb96e1fe07f7b56cfe124206ed85c4e59b9715b3b4e18b3054d890dd1ad32",
+    "releaseVersion": "0.2.1"
+  },
+  "promotion": {
+    "operationOrder": [
+      "ghcr.io/verjson/gha-runner:1.0.0",
+      "ghcr.io/verjson/gha-runner-go:1.0.0",
+      "ghcr.io/verjson/gha-runner-node:1.0.0",
+      "ghcr.io/verjson/gha-runner-pwsh:1.0.0",
+      "ghcr.io/verjson/gha-runner-python:1.0.0",
+      "ghcr.io/verjson/gha-runner-rust:1.0.0"
+    ],
+    "operations": [
+      {
+        "alias": "ghcr.io/verjson/gha-runner:1.0.0",
+        "digest": "sha256:74f1733a7a90a4798b29632881449800b30e47e9abaa8bcd049a94f5c483ed8e"
+      },
+      {
+        "alias": "ghcr.io/verjson/gha-runner-go:1.0.0",
+        "digest": "sha256:4c2b3929dd02470481e868f855aa0426d4c5ebb8b5d75a851890bbbf68303ea9"
+      },
+      {
+        "alias": "ghcr.io/verjson/gha-runner-node:1.0.0",
+        "digest": "sha256:2a0c056515e27e70ebbbf71d5fe4735d9c5a27ba25b282a92f6accae82e9b152"
+      },
+      {
+        "alias": "ghcr.io/verjson/gha-runner-pwsh:1.0.0",
+        "digest": "sha256:3342665d62f26a702992c7ba3272562581ebc6f8a1956738dfb43c4f557e0030"
+      },
+      {
+        "alias": "ghcr.io/verjson/gha-runner-python:1.0.0",
+        "digest": "sha256:3f77210c556230b1649971bd8d64a3ec52525e681ae64ca21426cc030395c775"
+      },
+      {
+        "alias": "ghcr.io/verjson/gha-runner-rust:1.0.0",
+        "digest": "sha256:5f7f26542b84acf68ed29789b6bbea9fb08f369640b720dc7d0bb3d2984a14a2"
+      }
+    ],
+    "recovery": "retry only after every existing alias resolves to its recorded digest; divergent aliases require operator quarantine"
+  },
+  "release": {
+    "runAttempt": 1,
+    "runId": 36209652761,
+    "sourceCommit": "18175bb991eb2316b4947ce48b764d8090636c4d",
+    "workflow": {
+      "contractCommit": "3b83ddeaa421e60005e15d36e946e2f83832bacb",
+      "path": ".github/workflows/container-release.yml"
+    }
+  },
+  "releaseVersion": "1.0.0",
+  "schemaVersion": 2,
+  "source": {
+    "commit": "18175bb991eb2316b4947ce48b764d8090636c4d",
+    "repository": "Verjson/verjson-git-runners",
+    "runAttempt": 1,
+    "runId": 36194362729,
+    "workflow": {
+      "contractCommit": "3b83ddeaa421e60005e15d36e946e2f83832bacb",
+      "path": ".github/workflows/container-candidate-publish.yml"
+    }
+  },
+  "timestamps": {
+    "candidatePublishedAt": "2026-09-25T21:58:26Z",
+    "releasedAt": "2026-09-26T01:48:32Z"
+  }
+}
