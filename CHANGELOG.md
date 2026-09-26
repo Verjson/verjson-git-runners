@@ -1,3 +1,256 @@
+# v1.0.0
+
+## Record the GitLab signed candidate acquisition and isolation design
+
+Adds ADR 0013, the design pass this issue's 2026-09-24 ownership-acceptance comment
+deferred: how verjson-git-runners extends Verjson/verjson-ci's already-reviewed
+candidate acquisition, isolation, and variable-mutation contracts (ADRs 0020, 0031-0035,
+0052, 0057-0058) across the five owner-outcome areas issue #208 names, with the concrete
+GitLab CE 18.3.1 bypasses this repository's own investigation found. No implementation
+code changes in this pass; the ADR fixes the architecture sub-issues must follow once
+delivery is picked up.
+
+_Date: 2026-09-25; id:20260925T191054Z; refs #208_
+
+## Repin generated contracts after validator fix
+
+Regenerated the GitHub workflow callers and changelog and ADR tooling from the canonical `Verjson/.github` contract at `645e5c23c512e57b14494b1ceb3715559900bac6`. This brings the full generated artifact set onto the reusable-workflow validator fix. Part of Verjson/.github#1540.
+
+_Date: 2026-09-22; id:20260922T035032Z_
+
+## Repin the AI review caller to the canonical check migration
+
+Regenerated .github/workflows/ai-review-merge.yml from canonical Verjson/.github commit e3a3696fee8055b35d485bb3132055cfdb12cf45. Updated the caller verifier to track this immutable pin separately while retaining the declared pins for the other AI callers. Verified checks: write is limited to this generated caller, authorization inputs are forwarded, and no legacy-owner acceptance appears in the caller. Part of Verjson/.github#1540.
+
+_Date: 2026-09-22; id:20260922T025147Z_
+
+## Refresh Bubblewrap package pin
+
+Refresh the exact per-architecture Bubblewrap package pin and its expected version
+map to Ubuntu's current Resolute `0.11.1-1ubuntu0.3` package. Keep behavioral test
+fixtures independent from the production pin. Image builds no longer request the
+expired `0.11.1-1ubuntu0.2` version.
+
+_Date: 2026-09-20; issue #218_
+
+## Pin Bubblewrap per architecture instead of with one shared version
+
+Every image build failed on its `linux/arm64` leg with
+`E: Version '0.11.1-1ubuntu0.1' for 'bubblewrap' was not found`. The pin was one exact
+version carried in four places — an `ARG` in `images/base.Dockerfile`, a default in each of
+`scripts/install-bubblewrap.sh` and `scripts/ensure-bubblewrap.sh`, and a top-level
+`version` in `images/bubblewrap-provenance.json` — and Ubuntu had stopped serving one
+version to both architectures.
+
+_Date: 2026-09-17; issue #216_
+
+## Probe the delivered lane for the Bubblewrap image contract
+
+Assert the Bubblewrap image contract against the runner the shared lane actually delivers,
+not only against the image this repository builds. `images/base.Dockerfile` has refused to
+publish an image without a root-owned `/usr/bin/bwrap` since #194, but nothing observed the
+image the fleet was running: the newest release manifest remained `v0.2.1` from 2026-08-27,
+whose `gha-runner-pwsh` amd64 digest
+`sha256:4eefaa4e634366c1f22dfae1f19196ff82a5bf5bb5733ccb9433273939689af3` contains no
+`bwrap` at all, so `Verjson/verjson-cli` met the gap as a red `main` on `gha-general-9`
+rather than as a red check here.
+
+_Date: 2026-09-17; issue #214_
+
+## Repin the four AI callers to one current contract SHA
+
+The four AI callers had drifted onto two different contract commits — the
+privileged-merge pair on `6462e0cc` and the review pair on `55576f7c` — while
+this repository's changelog and release callers sat on a third. That is the
+unit-of-adoption problem in miniature: nothing constrains a repository to one
+contract at a time, so each generated file rots on its own schedule and "which
+contract is this repo on" has no answer. All four are now regenerated together
+at `aecfb932`.
+
+_Date: 2026-09-17; id:20260917T050000Z_
+
+## Refresh canonical candidate and release contract pins
+
+Regenerate the GitLab candidate and release adopters from the current immutable `Verjson/.github` contract `3b83ddeaa421e60005e15d36e946e2f83832bacb`, including the provenance builder identity and generated validators. This removes stale canonical contract references without claiming that an image was published or that live protected-main evidence exists; those operational gates remain tracked by #208 and CI #30.
+
+_Date: 2026-09-15; issue #208_
+
+## Adopt protected release environment contract
+
+Regenerate the runner's stable container release caller and pinned helper bundle from the canonical protected release-environment contract. Keep the release App key environment-scoped and the candidate attestation gate unchanged.
+
+_Date: 2026-09-13; id:20260913T212100Z; refs #194, #1336_
+
+## Align runner release with accumulated major changes
+
+Align the next stable runner image version with the accumulated unreleased
+major change in the canonical GitLab producer path. This keeps candidate
+validation, release promotion, and the test mirror on the changelog engine's
+required `v1.0.0` line.
+
+_Date: 2026-09-13; id:20260913T204235Z; refs #194, #201_
+
+## Advance the next stable runner image version
+
+Advance the reviewed next stable container version after `v0.2.1` so the
+Bubblewrap image candidate from merged PR #196 can be promoted without
+rebuilding or silently reusing a released version. Keep the release workflow
+test mirror aligned with the same version.
+
+_Date: 2026-09-13; id:20260913T200744Z; refs #194_
+
+## bind Bubblewrap archives to immutable image provenance
+
+published image provenance now carries the architecture-specific signed APT archive digest, and the final image contract rejects an anchor or archive that does not match that immutable record.
+
+_Date: 2026-09-12; id:20260912T234500Z_
+
+## keep signed Bubblewrap metadata extraction pipe safe
+
+the Bubblewrap installer now consumes the complete apt metadata stream before selecting its first SHA256 field, avoiding a pipefail false failure during standalone image builds.
+
+_Date: 2026-09-12; id:20260912T233000Z_
+
+## repair standalone Bubblewrap fallback installation
+
+derived runner images now pass the pinned Bubblewrap version through env when the shared ensure helper invokes the authenticated installer, and the PowerShell image includes the same fallback assets.
+
+_Date: 2026-09-12; id:20260912T232000Z_
+
+## preserve verified Bubblewrap bootstrap for standalone images
+
+Derived runner images now carry the pre-install verification helper so they can recover from older base images without installing an unanchored Bubblewrap package.
+
+_Date: 2026-09-12; id:20260912T223000Z_
+
+## anchor Bubblewrap packages to authenticated APT metadata
+
+Bubblewrap images now verify package bytes against the authenticated APT SHA-256 before installation, record that anchor in the image, and derive the installed binary check from the verified package archive.
+
+_Date: 2026-09-12; id:20260912T210000Z_
+
+## close Bubblewrap verification race windows
+
+Bubblewrap image admission now reopens and revalidates the package archive after execution, opens protected files without FIFO blocking, and pins shipped package and binary checksums in tests.
+
+_Date: 2026-09-12; id:20260912T193000Z_
+
+## verify Bubblewrap package archive provenance at image admission
+
+The Bubblewrap image contract now uses an absolute Python interpreter, retains the exact downloaded package archive, verifies its immutable SHA-256 alongside the binary, and tests the root ownership boundary.
+
+_Date: 2026-09-12; id:20260912T181500Z_
+
+## Anchor Bubblewrap checks to immutable package provenance
+
+Verify the final `/usr/bin/bwrap` against architecture-specific SHA-256 values recorded
+from the exact pinned Ubuntu package artifact. Copy that provenance after image mutation
+and before the final contract helper, so rewritten dpkg metadata cannot authorize a
+replacement binary.
+
+_Date: 2026-09-12; id:20260912T160000Z; refs #194_
+
+## Verify Bubblewrap package provenance at the image boundary
+
+Run the final Bubblewrap image contract after all root installers and require the exact
+package version, package ownership, and package checksum for `/usr/bin/bwrap` before using
+its reported version. Reject writable, setuid, setgid, and sticky mode bits on the executable.
+
+_Date: 2026-09-12; id:20260912T140000Z; refs #194_
+
+## Bound Bubblewrap installation and helper trust
+
+Pin the Ubuntu Bubblewrap package to `0.11.1-1ubuntu0.1` for both the shared base and
+standalone fallback. Copy the final image contract helper after all image construction so
+no later mutating `COPY` or `RUN` can replace the pathname executed by the final contract.
+
+_Date: 2026-09-12; id:20260912T120000Z; refs #194_
+
+## Make Bubblewrap verification available to standalone variants
+
+Keep the fail-closed `/usr/bin/bwrap` checks active in every standalone derived image.
+Each variant copies the trusted image contract helper and bootstraps the OS `bubblewrap`
+package only when the attestation-verified base digest
+`ghcr.io/verjson/gha-runner@sha256:3af0d4949ae7d1282be0cd7bcad0b8f0e5283dacaec014c536ca0ee2c808e7bb`,
+including builds outside the same-run Bake graph, does not provide `/usr/bin/bwrap`.
+Same-run builds inherit the package from the shared base and skip the fallback. The
+installer is removed before the final exact exec-form contract. Regression coverage
+requires one helper copy and one bootstrap before one final contract in every derived
+variant.
+
+_Date: 2026-09-12; id:20260912T024733Z; refs #194_
+
+## Adopt canonical GitLab producer verification and Nexus promotion
+
+Run producer source and security checks through the immutable verjson-ci GitLab
+interface using Nexus-pinned images. Bind successful checkout tests, the original
+signed release manifest and explicit SBOM-reference evidence to a dispatch plan
+for all six Nexus runner variants. Preserve old signed source identities while
+using the renamed Nexus destination. Publication remains an explicit protected
+manual operation with broker-approved short-lived OIDC credentials.
+
+_Date: 2026-09-08; issue #203_
+
+## Prepare the renamed GitLab primary runner producer
+
+Point new installer clones and the Go module at verjson-git-runners on GitLab,
+retain existing gha launcher compatibility, and start renamed GHCR observation
+history without rewriting historical signed releases. Document the staged
+canonical CI and Nexus publication cutover in ADR 0012.
+
+_Date: 2026-09-08; issue #201_
+
+## Reconcile standalone base inputs before release credentials
+
+Adopt the canonical pre-credential release reconciliation contract at
+`55576f7cf8659d49aa28b3fca8039b6e05d47231` and generate the candidate, release,
+and changelog companions from that same immutable revision. The reviewed hook
+updates only the five derived Dockerfile defaults and README base reference from
+the verified release manifest. The canonical guard rejects unexpected writes and
+restores the tree on failure before release credentials are minted.
+
+_Date: 2026-09-08; issue #195_
+
+## Consume short-lived job-scoped Nexus pull authentication
+
+Explicitly disable static job image-pull Secrets and service-account fallback,
+while preserving exact image allowlists and Always pulls. Separate the manager's
+bootstrap Secret from per-job OIDC credentials and record the measured GitLab
+Runner 18.3.1 Secret-before-pod proof. Require canonical variable expansion,
+five-minute jobs, protected-reference admission and a fresh uncached-image live
+acceptance test without printing credentials or purging shared caches.
+
+_Date: 2026-09-08; id:20260908T050000Z; refs #198_
+
+## Adopt canonical Nexus manifest response compatibility
+
+Refresh the immutable canonical CI include and bootstrap candidate to the reviewed
+Nexus 3.83 manifest-response compatibility fix. Preserve the same enforced license
+inventory and job-scoped OIDC authentication, without reintroducing static pull
+fallbacks or weakening destination checks.
+
+_Date: 2026-09-08; id:20260908T033849Z; refs #198_
+
+## Define Nexus-pinned GitLab build-container consumption
+
+Add a credential-free Kubernetes runner configuration renderer for existing released
+producer images promoted unchanged to Nexus. Validate immutable references and separate
+GitLab manager/helper roles; constrain entrypoint behavior, nonroot execution, resource
+limits and image selection. Include denial tests and document the live provenance,
+credential, namespace-isolation and canary evidence still required before rollout.
+
+_Date: 2026-09-07; issue #198_
+
+## Add Bubblewrap to standard runner images
+
+Install Bubblewrap through the shared runner base so every published variant, including
+`gha-runner-pwsh`, provides a root-owned, non-writable `/usr/bin/bwrap` at version 0.9.0
+or newer. Every final amd64 and arm64 variant now executes a descriptor-bound image
+contract that rejects symlinks, mutable ancestry, unsafe ownership or modes, and path
+replacement before publication.
+
+_Date: 2026-08-30; issue #194_
+
 # v0.2.1
 
 ## Adopt bounded GHCR readiness
