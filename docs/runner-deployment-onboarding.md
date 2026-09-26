@@ -1,11 +1,19 @@
 # Non-production worker deployment onboarding
 
 Tracked in [#197](https://github.com/Verjson/verjson-git-runners/issues/197).
-This is an incomplete adopter: do not merge or dispatch it until the canonical
-contract test passes with real reviewed inputs. No canary, failure-stop, retry or
-rollback receipt has been produced by this change. The generated deployment
-artifacts now pin the canonical GitHub transport contract at
-`3af4580b7d345602891fea91c2684b3bb7892c36`.
+
+**Update 2026-09-26**: the sections below describing null App/installation
+IDs and absent `evidenceCommand`/`probeCommand` adapters are historical —
+`container-deployment.json` now carries real, verified App and installation
+IDs, and `scripts/runner-deployment-evidence.py` / `scripts/runner-deployment-probe.py`
+exist, are tested, and have been independently reviewed (issue #223). The
+canonical contract test (`scripts/container-deployment-contract.test.sh`)
+passes end to end. Left in place for their remaining-gap content: no canary,
+failure-stop, retry, or rollback receipt has been produced yet (rollback
+retrieval has no credential-free path from the adapter sandbox — tracked at
+`Verjson/.github#1281`), and the live deploy/observe exercise itself has not
+run. Do not dispatch a real (non-dry-run) deploy until those are resolved; a
+`dry-run: true` dispatch is mutation-free by construction.
 
 ## Reviewed target and observed gaps
 
@@ -61,9 +69,11 @@ The AI publisher's source authority is separately pinned to the live `ai-review-
 
 Registration uses GitHub's documented [prefilled registration parameters](https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-using-url-parameters). The registering operator must review the prefilled permissions and selected-repository installation before submitting.
 
-Implement the consumer-owned scripts declared by `evidenceCommand` and
-`probeCommand` only after their evidence sources are established. They are absent
-deliberately; this draft does not create fake successful evidence. Required work:
+**Update 2026-09-26**: `evidenceCommand` and `probeCommand` are now
+implemented (`scripts/runner-deployment-evidence.py`,
+`scripts/runner-deployment-probe.py`, issue #223) against real evidence
+sources — no fake successful evidence was created. The requirements below
+describe what they satisfy; kept for reference rather than rewritten.
 
 - Verify release manifest provenance and immutable image digests, exact live fleet
   membership, group/labels/tools, deployed baseline and available capacity.
@@ -90,11 +100,15 @@ canary run, job and receipt through dedicated short-lived App credentials. The
 broker is a capability boundary; it is not an active adapter and no reusable
 workflow invokes it yet.
 
-The declared `evidenceCommand` and `probeCommand` still point at absent
-consumer-owned scripts by design. The broker's `host-export` operation rejects
+**Update 2026-09-26**: `evidenceCommand`/`probeCommand` are implemented (see
+above); `verjson-cli-cloud#504` is closed and `@verjson/cli-cloud@1.1.0`
+ships the `runner-host-evidence` API this section originally said was
+missing. The paragraph below is retained for its constraints (never fabricate
+evidence or credentials), not as a current blocker list.
+
+The broker's `host-export` operation rejects
 before credentials are acquired because the pinned CLI does not provide a
-mutation-free host export. [verjson-cli-cloud#504](https://github.com/Verjson/verjson-cli-cloud/issues/504)
-owns that missing capability. Do not call mutating inventory as dry-run evidence,
+mutation-free host export. Do not call mutating inventory as dry-run evidence,
 invent host health or capacity facts, or add cached CLI, provider mutation,
 runner-control or fabricated evidence credentials.
 
