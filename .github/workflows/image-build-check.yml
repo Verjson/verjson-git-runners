@@ -65,7 +65,7 @@ jobs:
       # way the candidate workflow wires it, so a base change that breaks a variant fails
       # here too.
       - name: Build the base image and every variant on it
-        uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7.3.0
+        uses: docker/bake-action@018cb6412ab401ebaa809aa5f85966b74628600f # v7.4.0
         env:
           # Pull requests inherit main's cache. Exporting the same layers here creates a
           # branch-scoped copy that survives the merge: one PR retained 4.25 GB beside
@@ -86,7 +86,7 @@ jobs:
       # The root Dockerfile has its own FROM and pins, independent of images/base.Dockerfile,
       # so it can break on its own and is built in parallel.
       - name: Build root Dockerfile
-        uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7.3.0
+        uses: docker/bake-action@018cb6412ab401ebaa809aa5f85966b74628600f # v7.4.0
         env:
           # Keep this build read-through only for the same branch-isolation reason as the
           # grouped image build above.
@@ -111,7 +111,7 @@ jobs:
       - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
       - name: Build the base image and the pwsh variant for arm64 under emulation
-        uses: docker/bake-action@d3418bd7d0e9324001bca92fa8ba175ea7e6dc9b # v7.3.0
+        uses: docker/bake-action@018cb6412ab401ebaa809aa5f85966b74628600f # v7.4.0
         env:
           PLATFORM: linux/arm64
           # Cold on purpose. This job catches drift a cache key cannot see — an upstream
