@@ -12,7 +12,8 @@ permissions:
   pull-requests: read
 jobs:
   produce:
-    uses: Verjson/.github/.github/workflows/container-deployment-review-producer.yml@22039a2e8d19339f36654323594743e8fd5031a1
+    uses: Verjson/.github/.github/workflows/container-deployment-review-producer.yml@737250a776a7990b5874e8f3a4c50e1c6d3d683c
+    secrets: inherit
     with:
       kind: ai
       pull-request: ${{ inputs.pull-request }}
