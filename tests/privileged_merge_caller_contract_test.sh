@@ -6,8 +6,8 @@ primary="${root}/.github/workflows/ai-privileged-merge.yml"
 retry="${root}/.github/workflows/ai-promotion-retry.yml"
 
 printf '%s  %s\n' \
-  'cb091b4c6c00caca09914a97b002a18ef23c43a7d649e1d7274804c59c0dd359' "${primary}" \
-  '5df42cb007d6e3bb1d911dca7afbe52adbce1feb60e58c3b5fddc7c83011e04e' "${retry}" \
+  '985636fb2637790643e99ec5a6a174a639c9020d2769bab08d615b3eef32bc2d' "${primary}" \
+  'cd7c6df6c678f39876cd861d7de6e798f58fa16c3b1e9f51b56c9019aeda61df' "${retry}" \
   | sha256sum --check --strict >/dev/null
 
 python3 - "${primary}" "${retry}" "${root}/tests/contract_pins.json" <<'PY'
@@ -22,9 +22,10 @@ retry = yaml.safe_load(retry_text)
 # Shared with tests/ai_review_caller_test.py: one pin per family, one file.
 contract = json.loads(open(sys.argv[3], encoding="utf-8").read())["ai-callers"]
 permissions = {
-    "actions": "read",
+    "actions": "write",
     "checks": "read",
     "contents": "read",
+    "issues": "read",
     "pull-requests": "read",
 }
 required_checks = [
@@ -67,10 +68,12 @@ for workflow, source in ((primary, primary_text), (retry, retry_text)):
     # generated files, and a digest change means the generator's output changed
     # or somebody hand-edited a privileged caller. The two checks below are
     # cosmetic — they catch a hand-added secret block, nothing more.
+    # `actions: write` became part of the contract with #1649 (orphaned
+    # authorization recovery needs to dispatch/rerun workflows); the
+    # `permissions` equality assert above, not this loop, is what bounds it.
     assert "ORG_ADMIN_TOKEN" not in source
     assert "MERGE_APP_PRIVATE_KEY" not in source
     assert "generated-artifacts / validate" not in source
-    assert "write" not in workflow["permissions"].values()
 PY
 
 echo "privileged merge generated caller contract passed"
