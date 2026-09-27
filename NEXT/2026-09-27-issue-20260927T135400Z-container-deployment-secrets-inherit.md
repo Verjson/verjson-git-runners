@@ -1,6 +1,7 @@
 ---
 date: 2026-09-27
-issue: 197
+id: 20260927T135400Z
+refs: 197
 impact: patch
 title: Regenerate container-deployment callers to inherit the production secret context
 ---
