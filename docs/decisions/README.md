@@ -4,6 +4,7 @@
 <!-- prettier-ignore -->
 | # | Date | Decision |
 |---|------|----------|
+| [0016](0016-admin-merge-ai-review-caller-repin/README.md) | 2026-09-27 | Admin-merge #233 past a structurally-unresolvable AI review authorization check |
 | [0015](0015-runner-host-evidence-credential-provisioning/README.md) | 2026-09-24 | Provision the dedicated read-only host-evidence credentials on the canary host |
 | [0014](0014-protected-worker-deployment/README.md) | 2026-09-09 | Adopt protected worker deployment with provider-specific admission |
 | [0013](0013-gitlab-signed-candidate-acquisition-and-isolated-execution/README.md) | 2026-09-25 | GitLab signed candidate acquisition and isolated execution |
