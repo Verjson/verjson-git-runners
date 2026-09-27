@@ -68,8 +68,10 @@ for workflow, source in ((primary, primary_text), (retry, retry_text)):
     # generated files, and a digest change means the generator's output changed
     # or somebody hand-edited a privileged caller. The two checks below are
     # cosmetic — they catch a hand-added secret block, nothing more.
-    # `actions: write` became part of the contract with #1649 (orphaned
-    # authorization recovery needs to dispatch/rerun workflows); the
+    # `actions: write` became part of the contract with Verjson/.github#1583
+    # (ADR 0207: it backs a post-merge cleanup of the consumed arm-receipt
+    # artifact; `issues: read` backs a closingIssuesReferences read to surface
+    # issues the terminal merge silently fails to auto-close). The
     # `permissions` equality assert above, not this loop, is what bounds it.
     assert "ORG_ADMIN_TOKEN" not in source
     assert "MERGE_APP_PRIVATE_KEY" not in source

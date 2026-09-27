@@ -1,7 +1,6 @@
 ---
 date: 2026-09-27
 id: 20260927T162307Z
-refs: 197
 impact: patch
 title: Repin the AI-review caller family to the details_url-binding fix
 ---
@@ -24,8 +23,11 @@ Regenerated all four callers at the current canonical `Verjson/.github` HEAD
 since the fix) via `gen-ai-review-caller.sh`, `gen-ai-review-label-rearm-caller.sh`,
 and `gen-privileged-merge-caller.sh`, and bumped `tests/contract_pins.json`'s
 `ai-callers` and `ai-review-merge` pins to match. The new contract legitimately
-adds `actions: write` and `issues: read` to the privileged-merge pair
-(orphaned-authorization recovery needs to dispatch/rerun workflows); updated
+adds `actions: write` and `issues: read` to the privileged-merge pair, landed
+between the two pins by `Verjson/.github#1583` (ADR 0207): `actions: write`
+backs a post-merge cleanup of the consumed arm-receipt artifact, and
+`issues: read` backs a caller-owned read of `closingIssuesReferences` to
+surface issues the terminal merge silently fails to auto-close. Updated
 `tests/privileged_merge_caller_contract_test.sh`'s digest and permission
 assertions accordingly, and the two hardcoded digests in
 `tests/ai_review_caller_test.py`.
