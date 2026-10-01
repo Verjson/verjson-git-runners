@@ -6,8 +6,8 @@ primary="${root}/.github/workflows/ai-privileged-merge.yml"
 retry="${root}/.github/workflows/ai-promotion-retry.yml"
 
 printf '%s  %s\n' \
-  '985636fb2637790643e99ec5a6a174a639c9020d2769bab08d615b3eef32bc2d' "${primary}" \
-  'cd7c6df6c678f39876cd861d7de6e798f58fa16c3b1e9f51b56c9019aeda61df' "${retry}" \
+  '2d775b4b85d99ab8df66646ca56aa1509ed98f0188079510d80ace8f59a28294' "${primary}" \
+  '98adaa059ca8f8dc3fa91dd2a0bd3bb05ed5d93a88cdd1f096578898a6cfe179' "${retry}" \
   | sha256sum --check --strict >/dev/null
 
 python3 - "${primary}" "${retry}" "${root}/tests/contract_pins.json" <<'PY'
