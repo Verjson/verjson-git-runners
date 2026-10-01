@@ -26,20 +26,79 @@ CONTAINER_DEPLOYMENT_CONTRACT = _PINS['container-deployment']
 # the same way in tests/privileged_merge_caller_contract_test.sh.
 GENERATED_CALLER_DIGESTS = {
     '.github/workflows/ai-review-merge.yml':
-        '652be0cab909f1e56b2a274ea6b61cb1ef846b7c15f20d8b9c3cc69701b1068e',
+        '07fd35d64d6f0647e290ee3e863ced72a4b4bd5351515a17f362f994623bf2eb',
+    '.github/workflows/gate-rearm.yml':
+        'f9d05ce32c449af5bfd4c8050dc1c7be8745b41504b38f8842e3aa9a5d1c7c7f',
+    '.github/workflows/ai-review-lifecycle-rearm.yml':
+        '252c38a04883b42700bdf2d0cab76f3390d285d242f89a2eebb0d0ba80cfae32',
     '.github/workflows/ai-review-label-rearm.yml':
-        '0ed935b164325b469aa685bf77769bebc99311e17586ebc4e598777a073a5174',
+        '4387bb0a0b4b38b9c98de73f6adf02835ff2f574ecce4398ed618180e7a95cf3',
 }
 
 
 class ReviewCallerTest(unittest.TestCase):
-    def test_required_org_arm_has_no_duplicate_consumer_dispatcher(self):
-        self.assertFalse((ROOT / '.github/workflows/gate-rearm.yml').exists())
-        caller = yaml.safe_load((ROOT / '.github/workflows/ai-review-label-rearm.yml').read_text())
-        events = caller[True]['pull_request_target']['types']
-        self.assertEqual(set(events), {'labeled', 'ready_for_review', 'converted_to_draft', 'edited', 'unlabeled'})
-        self.assertFalse({'opened', 'synchronize', 'reopened'} & set(events))
-        self.assertEqual(caller['jobs']['rearm']['uses'], 'Verjson/.github/.github/workflows/gate-rearm.yml@' + AI_CALLER_CONTRACT)
+    def test_rearm_callers_own_only_their_assigned_pull_request_events(self):
+        callers = {
+            'gate-rearm.yml': {'opened', 'reopened', 'synchronize'},
+            'ai-review-lifecycle-rearm.yml': {
+                'ready_for_review', 'converted_to_draft', 'edited', 'unlabeled'},
+            'ai-review-label-rearm.yml': {'labeled'},
+        }
+        for filename, expected_events in callers.items():
+            with self.subTest(caller=filename):
+                caller = yaml.safe_load((ROOT / '.github/workflows' / filename).read_text())
+                triggers = caller[True]
+                self.assertEqual(
+                    set(triggers),
+                    {'pull_request_target', 'workflow_call'} if filename == 'gate-rearm.yml'
+                    else {'pull_request_target'},
+                    f'{filename} declares an unexpected workflow trigger')
+                self.assertEqual(
+                    set(triggers['pull_request_target']['types']), expected_events,
+                    f'{filename} owns events outside its assigned partition')
+
+    def test_gate_rearm_exposes_required_string_environment_input(self):
+        gate = yaml.safe_load((ROOT / '.github/workflows/gate-rearm.yml').read_text())
+        environment_input = gate[True]['workflow_call']['inputs']['ai_review_environment']
+        self.assertEqual(
+            environment_input['required'], True)
+        self.assertEqual(environment_input['type'], 'string')
+        self.assertTrue(environment_input['description'])
+
+    def test_rearm_callers_keep_the_shared_permissions_and_call_contract(self):
+        expected_workflow_permissions = {
+            'gate-rearm.yml': {'contents': 'read'},
+            'ai-review-lifecycle-rearm.yml': {'actions': 'read', 'contents': 'read'},
+            'ai-review-label-rearm.yml': {'actions': 'read', 'contents': 'read'},
+        }
+        expected_job_permissions = {
+            'actions': 'write',
+            'checks': 'write',
+            'contents': 'read',
+            'issues': 'write',
+            'pull-requests': 'write',
+        }
+        callers = (
+            'gate-rearm.yml',
+            'ai-review-lifecycle-rearm.yml',
+            'ai-review-label-rearm.yml',
+        )
+        expected_uses = {
+            'gate-rearm.yml':
+                'Verjson/.github/.github/workflows/gate-rearm.yml@' + AI_CALLER_CONTRACT,
+            'ai-review-lifecycle-rearm.yml': './.github/workflows/gate-rearm.yml',
+            'ai-review-label-rearm.yml':
+                'Verjson/.github/.github/workflows/gate-rearm.yml@' + AI_CALLER_CONTRACT,
+        }
+        for filename in callers:
+            with self.subTest(caller=filename):
+                caller = yaml.safe_load((ROOT / '.github/workflows' / filename).read_text())
+                job = caller['jobs']['rearm']
+                self.assertEqual(caller['permissions'], expected_workflow_permissions[filename])
+                self.assertEqual(job['permissions'], expected_job_permissions)
+                self.assertEqual(job['uses'], expected_uses[filename])
+                self.assertEqual(job['secrets'], 'inherit')
+                self.assertEqual(job['with'], {'ai_review_environment': 'ai-review-app'})
 
     def test_review_dispatch_keeps_exact_head_inputs_with_repaired_immutable_contract(self):
         caller = yaml.safe_load((ROOT / '.github/workflows/ai-review-merge.yml').read_text())
